@@ -1,0 +1,2006 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title id="page-title">عيادة | نظام الإدارة الذكي</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+
+<!-- ════════════════════════════════════════════════
+  🔥 FIREBASE SDK
+═══════════════════════════════════════════════════ -->
+<script type="module">
+import { initializeApp }                        from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getDatabase, ref, set, push, remove,
+         onValue, update }                       from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+// ════════════════════════════════════════════════
+//  🔥 FIREBASE CONFIG
+//  ➜ Replace these values with YOUR project keys from:
+//     Firebase Console → Project Settings → Your apps → SDK setup
+// ════════════════════════════════════════════════
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyC1-AE5sJ1fxw1yl2JlE4ABs6dIR7o7LWY",
+  authDomain:        "eis-clinic-b84b6.firebaseapp.com",
+  databaseURL:       "https://eis-clinic-b84b6-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId:         "eis-clinic-b84b6",
+  storageBucket:     "eis-clinic-b84b6.firebasestorage.app",
+  messagingSenderId: "529364720158",
+  appId:             "1:529364720158:web:6e76fb62240784a78d2c0f",
+  measurementId:     "G-06DE7EFXEB",
+};
+
+// ── Init Firebase ──────────────────────────────
+const firebaseApp = initializeApp(FIREBASE_CONFIG);
+const db          = getDatabase(firebaseApp);
+
+// ── DB helper paths ────────────────────────────
+const PATHS = {
+  appointments: "appointments",
+  finance:      "finance",
+  settings:     "settings",
+};
+
+// ── Expose Firebase ops to global scope ────────
+window.FB = {
+  // ── Appointments ──────────────────────────────
+  addAppointment(data){
+    const newRef = push(ref(db, PATHS.appointments));
+    return set(newRef, { ...data, fbId: newRef.key });
+  },
+  updateAppointment(fbId, changes){
+    return update(ref(db, `${PATHS.appointments}/${fbId}`), changes);
+  },
+  deleteAppointment(fbId){
+    return remove(ref(db, `${PATHS.appointments}/${fbId}`));
+  },
+  watchAppointments(callback){
+    onValue(ref(db, PATHS.appointments), snap => {
+      const raw = snap.val() || {};
+      callback(Object.values(raw));
+    });
+  },
+
+  // ── Finance ───────────────────────────────────
+  addFinance(data){
+    const newRef = push(ref(db, PATHS.finance));
+    return set(newRef, { ...data, fbId: newRef.key });
+  },
+  deleteFinance(fbId){
+    return remove(ref(db, `${PATHS.finance}/${fbId}`));
+  },
+  watchFinance(callback){
+    onValue(ref(db, PATHS.finance), snap => {
+      const raw = snap.val() || {};
+      callback(Object.values(raw));
+    });
+  },
+
+  // ── Settings ──────────────────────────────────
+  saveSettings(data){
+    return set(ref(db, PATHS.settings), data);
+  },
+  watchSettings(callback){
+    onValue(ref(db, PATHS.settings), snap => {
+      if(snap.val()) callback(snap.val());
+    });
+  },
+};
+
+// ── Signal that Firebase is ready ─────────────
+window.FIREBASE_READY = true;
+window.dispatchEvent(new Event("firebase-ready"));
+console.log("🔥 Firebase connected");
+</script>
+
+<!-- ════════════════════════════════════════════════
+  ⚙️ CLINIC CONFIG — Edit this section to customise your clinic
+     Change: CLINIC_NAME, DOCTOR_NAME, LOGO_EMOJI, LOGO_URL, colors, passwords
+═══════════════════════════════════════════════════ -->
+<script>
+const CLINIC_CONFIG = {
+  // 🏷️ Identity
+  clinicName:   "عيادة د. خالد للأسنان",
+  doctorName:   "د. خالد محمد",
+  specialty:    "طب وجراحة الأسنان",
+  logoEmoji:    "🦷",          // fallback if no image logo
+  logoUrl:      "",            // set to image URL/path to use a real logo, e.g. "logo.png"
+
+  // 🔑 Login credentials
+  ownerUser:    "owner",
+  ownerPass:    "doctor123",
+  ownerName:    "د. خالد محمد",
+  ownerInitials:"خم",
+
+  secretaryUser:"secretary",
+  secretaryPass:"clinic456",
+  secretaryName:"سكرتيرة العيادة",
+  secretaryInitials:"سك",
+
+  // 🕐 Hours & Contact
+  workDays:     "السبت – الخميس",
+  workHours:    "9 ص – 9 م",
+  phone:        "01012345678",
+  address:      "6 أكتوبر، الجيزة",
+
+  // 💰 Service Prices (EGP) — from Excel cost analysis
+  services: {
+    "كشف":    { price: 200,  minCost: 183,  emoji: "🔍" },
+    "تنظيف":  { price: 400,  minCost: 362,  emoji: "✨" },
+    "حشو":    { price: 800,  minCost: 606,  emoji: "🦷" },
+    "أمالغم": { price: 700,  minCost: 477,  emoji: "⚙️" },
+    "علاج عصب":{ price:2500, minCost:1244,  emoji: "💉" },
+    "خلع":    { price: 350,  minCost: 167,  emoji: "🔧" },
+    "تقويم":  { price: 5000, minCost: 0,    emoji: "😁" },
+    "تبييض":  { price: 2000, minCost:1342,  emoji: "⭐" },
+    "تركيبة": { price: 3500, minCost: 0,    emoji: "👑" },
+  },
+
+  // 🎨 COLORS — Change hex codes to retheme the entire app
+  colors: {
+    navy:       "#0A1628",
+    navyMid:    "#0F1E38",
+    navyLight:  "#162440",
+    navyBorder: "#1E3255",
+    accent:     "#00D4AA",   // main brand color (teal)
+    accentGlow: "rgba(0,212,170,.35)",
+    accentDim:  "rgba(0,212,170,.15)",
+    gold:       "#F5C842",
+    goldDim:    "rgba(245,200,66,.12)",
+    coral:      "#FF6B6B",
+    coralDim:   "rgba(255,107,107,.12)",
+    slate:      "#8A9BB0",
+    slateMid:   "#4A5F7A",
+  },
+
+  // 📊 Fixed costs (from Excel sheet مصاريف التشغيل الثابتة)
+  fixedCosts: {
+    rent:        2000,
+    marketing:   6000,
+    bills:       750,
+    salaries:    27000,  // secretary + assistants + doctor
+    totalMonthly:35750,
+    depreciationMonthly: 13583,
+    totalFixed:  49333,  // with depreciation
+    workHrsMonth:216,
+    fixedCostPerHr: 228.40,
+  },
+
+  // 📦 Variable costs per case (from Excel)
+  variableCosts: {
+    disposables:  16.01,
+    anesthesia:   7.80,
+    waste:        5.00,
+  }
+};
+</script>
+
+<style id="dynamic-theme">
+/* ── GENERATED FROM CLINIC_CONFIG.colors ──────── */
+/* This block is overwritten by applyTheme() on load */
+</style>
+
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#0A1628;
+  --navy-mid:#0F1E38;
+  --navy-light:#162440;
+  --navy-border:#1E3255;
+  --teal:#00D4AA;
+  --teal-dim:rgba(0,212,170,.15);
+  --teal-glow:rgba(0,212,170,.35);
+  --gold:#F5C842;
+  --gold-dim:rgba(245,200,66,.12);
+  --coral:#FF6B6B;
+  --coral-dim:rgba(255,107,107,.12);
+  --slate:#8A9BB0;
+  --slate-mid:#4A5F7A;
+  --white:#FFFFFF;
+  --font:'Cairo',sans-serif;
+  --mono:'JetBrains Mono',monospace;
+  --sidebar:250px;
+  --topbar:60px;
+  --radius:12px;
+  --radius-sm:8px;
+  --trans:0.2s cubic-bezier(.4,0,.2,1);
+}
+html,body{height:100%;background:var(--navy);color:var(--white);font-family:var(--font);font-size:14px;overflow:hidden}
+
+/* ── LOGIN ───────────────────────────────────── */
+#login-screen{
+  position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+  background:var(--navy);z-index:1000;
+  background-image:radial-gradient(ellipse at 20% 50%, rgba(0,212,170,.06) 0%, transparent 60%),
+                   radial-gradient(ellipse at 80% 20%, rgba(245,200,66,.04) 0%, transparent 50%);
+}
+.login-card{
+  width:440px;background:var(--navy-mid);border:1px solid var(--navy-border);
+  border-radius:24px;padding:48px 40px;position:relative;overflow:hidden;
+  box-shadow:0 32px 80px rgba(0,0,0,.4);
+}
+.login-card::before{
+  content:'';position:absolute;top:-80px;right:-80px;width:240px;height:240px;
+  background:radial-gradient(circle,var(--teal-glow),transparent 70%);pointer-events:none;
+}
+.login-card::after{
+  content:'';position:absolute;bottom:-60px;left:-60px;width:180px;height:180px;
+  background:radial-gradient(circle,var(--gold-dim),transparent 70%);pointer-events:none;
+}
+.login-logo-wrap{text-align:center;margin-bottom:16px}
+.login-logo-img{width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid var(--teal);box-shadow:0 0 24px var(--teal-glow)}
+.login-logo-emoji{font-size:56px;filter:drop-shadow(0 0 20px var(--teal-glow))}
+.login-title{text-align:center;font-size:20px;font-weight:800;margin-bottom:4px}
+.login-sub{text-align:center;color:var(--slate);font-size:12px;margin-bottom:8px}
+.login-specialty{text-align:center;color:var(--teal);font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;margin-bottom:28px;opacity:.8}
+.form-group{margin-bottom:16px}
+.form-label{display:block;font-size:11px;font-weight:700;color:var(--slate);margin-bottom:8px;letter-spacing:.6px;text-transform:uppercase}
+.form-input{
+  width:100%;padding:13px 16px;background:var(--navy-light);border:1px solid var(--navy-border);
+  border-radius:var(--radius-sm);color:var(--white);font-family:var(--font);font-size:14px;
+  transition:border-color var(--trans),box-shadow var(--trans);outline:none;
+}
+.form-input:focus{border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-dim)}
+.form-input::placeholder{color:var(--slate-mid)}
+.input-wrap{position:relative}
+.eye-btn{position:absolute;left:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--slate);font-size:16px;padding:0;line-height:1;transition:color var(--trans)}
+.eye-btn:hover{color:var(--white)}
+.login-btn{
+  width:100%;padding:14px;background:var(--teal);border:none;border-radius:var(--radius-sm);
+  color:var(--navy);font-family:var(--font);font-size:15px;font-weight:800;cursor:pointer;
+  transition:all var(--trans);margin-top:8px;letter-spacing:.3px;
+}
+.login-btn:hover{background:#00f0c0;box-shadow:0 8px 28px var(--teal-glow);transform:translateY(-1px)}
+.login-error{
+  background:var(--coral-dim);border:1px solid rgba(255,107,107,.3);border-radius:var(--radius-sm);
+  padding:10px 14px;color:var(--coral);font-size:13px;text-align:center;margin-bottom:12px;
+}
+.demo-creds{
+  margin-top:24px;padding:14px;background:rgba(255,255,255,.04);border-radius:var(--radius-sm);
+  border:1px solid var(--navy-border);
+}
+.demo-title{font-size:10px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px}
+.demo-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px}
+.demo-row span:first-child{color:var(--slate)}
+.demo-row code{font-family:var(--mono);font-size:11px;color:var(--teal);background:var(--teal-dim);padding:2px 8px;border-radius:4px}
+
+/* ── LAYOUT ──────────────────────────────────── */
+#app{display:none;height:100vh;overflow:hidden}
+#app.visible{display:flex}
+
+/* ── SIDEBAR ─────────────────────────────────── */
+.sidebar{
+  width:var(--sidebar);flex-shrink:0;background:var(--navy-mid);border-left:1px solid var(--navy-border);
+  display:flex;flex-direction:column;height:100vh;position:relative;overflow:hidden;
+}
+.sidebar::before{
+  content:'';position:absolute;bottom:-80px;left:-80px;width:240px;height:240px;
+  background:radial-gradient(circle,var(--teal-dim),transparent 70%);pointer-events:none;
+}
+.sidebar-brand{padding:20px 20px 16px;border-bottom:1px solid var(--navy-border);display:flex;align-items:center;gap:12px}
+.brand-logo-wrap{flex-shrink:0}
+.brand-logo-img{width:40px;height:40px;border-radius:10px;object-fit:cover;border:2px solid var(--teal)}
+.brand-logo-emoji{font-size:30px}
+.brand-text{}
+.brand-name{font-size:13px;font-weight:800;line-height:1.3;color:var(--white)}
+.brand-sub{font-size:10px;color:var(--slate);margin-top:1px}
+.sidebar-nav{flex:1;padding:12px 10px;overflow-y:auto;scrollbar-width:none}
+.sidebar-nav::-webkit-scrollbar{display:none}
+.nav-section-label{font-size:10px;font-weight:700;color:var(--slate-mid);letter-spacing:.8px;text-transform:uppercase;padding:12px 10px 6px}
+.nav-item{
+  display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--radius-sm);
+  cursor:pointer;transition:all var(--trans);margin-bottom:2px;position:relative;
+  color:var(--slate);font-size:13px;font-weight:500;user-select:none;
+}
+.nav-item:hover{background:rgba(255,255,255,.05);color:var(--white)}
+.nav-item.active{background:var(--teal-dim);color:var(--teal)}
+.nav-item.active::before{
+  content:'';position:absolute;right:-10px;top:50%;transform:translateY(-50%);
+  width:3px;height:60%;background:var(--teal);border-radius:2px 0 0 2px;
+  box-shadow:0 0 8px var(--teal-glow);
+}
+.nav-icon{font-size:17px;flex-shrink:0;width:22px;text-align:center}
+.nav-badge{margin-right:auto;background:var(--teal);color:var(--navy);font-size:10px;font-weight:800;padding:1px 7px;border-radius:20px}
+.sidebar-user{padding:16px;border-top:1px solid var(--navy-border)}
+.user-card{display:flex;align-items:center;gap:10px}
+.user-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0}
+.user-avatar.owner{background:linear-gradient(135deg,#7C3AED,#A855F7);color:#fff}
+.user-avatar.secretary{background:linear-gradient(135deg,#0891B2,#06B6D4);color:#fff}
+.user-name{font-size:13px;font-weight:700;line-height:1.2}
+.user-role{font-size:11px;color:var(--slate)}
+.logout-btn{margin-right:auto;background:none;border:none;cursor:pointer;color:var(--slate);font-size:16px;padding:4px;border-radius:4px;transition:color var(--trans)}
+.logout-btn:hover{color:var(--coral)}
+
+/* ── MAIN ─────────────────────────────────────── */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.topbar{
+  height:var(--topbar);flex-shrink:0;background:var(--navy-mid);border-bottom:1px solid var(--navy-border);
+  display:flex;align-items:center;padding:0 24px;gap:16px;
+}
+.topbar-title{font-size:17px;font-weight:800}
+.topbar-sub{font-size:12px;color:var(--slate);margin-top:1px}
+.topbar-right{margin-right:auto;display:flex;align-items:center;gap:10px}
+.status-dot{
+  display:flex;align-items:center;gap:6px;font-size:12px;color:var(--teal);font-weight:600;
+  background:var(--teal-dim);padding:4px 12px;border-radius:20px;border:1px solid rgba(0,212,170,.2);
+}
+.status-dot::before{content:'';width:7px;height:7px;background:var(--teal);border-radius:50%;animation:pulse 2s infinite;box-shadow:0 0 6px var(--teal)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.topbar-date{font-size:11px;color:var(--slate);font-family:var(--mono)}
+.content{flex:1;overflow-y:auto;padding:24px;scrollbar-width:thin;scrollbar-color:var(--navy-border) transparent}
+.content::-webkit-scrollbar{width:6px}
+.content::-webkit-scrollbar-track{background:transparent}
+.content::-webkit-scrollbar-thumb{background:var(--navy-border);border-radius:3px}
+
+/* ── CARDS & METRICS ─────────────────────────── */
+.metrics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:24px}
+.metric-card{
+  background:var(--navy-mid);border:1px solid var(--navy-border);border-radius:var(--radius);
+  padding:18px 20px;position:relative;overflow:hidden;transition:all var(--trans);cursor:default;
+}
+.metric-card:hover{border-color:rgba(0,212,170,.3);transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.2)}
+.metric-card::after{content:'';position:absolute;top:0;right:0;width:3px;height:100%;border-radius:0 var(--radius) var(--radius) 0}
+.metric-card.teal::after{background:var(--teal);box-shadow:-4px 0 12px var(--teal-glow)}
+.metric-card.gold::after{background:var(--gold)}
+.metric-card.coral::after{background:var(--coral)}
+.metric-card.purple::after{background:#A855F7}
+.metric-icon{font-size:22px;margin-bottom:10px}
+.metric-label{font-size:11px;color:var(--slate);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.metric-value{font-size:24px;font-weight:800;line-height:1}
+.metric-value.teal{color:var(--teal)}
+.metric-value.gold{color:var(--gold)}
+.metric-value.coral{color:var(--coral)}
+.metric-value.purple{color:#A855F7}
+.metric-value.white{color:var(--white)}
+.metric-sub{font-size:11px;color:var(--slate);margin-top:4px}
+
+/* ── PANEL ──────────────────────────────────── */
+.panel{background:var(--navy-mid);border:1px solid var(--navy-border);border-radius:var(--radius);overflow:hidden;margin-bottom:20px}
+.panel-header{padding:16px 20px;border-bottom:1px solid var(--navy-border);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.panel-title{font-size:14px;font-weight:700}
+.panel-body{padding:20px}
+
+/* ── BUTTONS ────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:var(--radius-sm);font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;border:none;transition:all var(--trans)}
+.btn-primary{background:var(--teal);color:var(--navy)}
+.btn-primary:hover{background:#00f0c0;box-shadow:0 4px 16px var(--teal-glow);transform:translateY(-1px)}
+.btn-ghost{background:rgba(255,255,255,.06);color:var(--white);border:1px solid var(--navy-border)}
+.btn-ghost:hover{background:rgba(255,255,255,.1);border-color:var(--slate-mid)}
+.btn-danger{background:var(--coral-dim);color:var(--coral);border:1px solid rgba(255,107,107,.3)}
+.btn-danger:hover{background:rgba(255,107,107,.25)}
+.btn-gold{background:var(--gold-dim);color:var(--gold);border:1px solid rgba(245,200,66,.3)}
+.btn-gold:hover{background:rgba(245,200,66,.2)}
+.btn-purple{background:rgba(168,85,247,.12);color:#A855F7;border:1px solid rgba(168,85,247,.3)}
+.btn-purple:hover{background:rgba(168,85,247,.2)}
+.btn-sm{padding:6px 12px;font-size:12px}
+.btn-icon{padding:8px;border-radius:var(--radius-sm)}
+
+/* ── FILTERS / PILLS ────────────────────────── */
+.pill-group{display:flex;gap:6px;flex-wrap:wrap}
+.pill{
+  padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;
+  border:1px solid var(--navy-border);color:var(--slate);background:transparent;
+  font-family:var(--font);transition:all var(--trans);
+}
+.pill:hover{border-color:var(--slate-mid);color:var(--white)}
+.pill.active{background:var(--teal-dim);border-color:rgba(0,212,170,.4);color:var(--teal)}
+
+/* ── TABLE ──────────────────────────────────── */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+thead tr{border-bottom:1px solid var(--navy-border)}
+th{padding:10px 14px;text-align:right;font-size:11px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
+tbody tr{border-bottom:1px solid rgba(255,255,255,.04);transition:background var(--trans)}
+tbody tr:hover{background:rgba(255,255,255,.03)}
+td{padding:12px 14px;font-size:13px;white-space:nowrap}
+.td-name{font-weight:700;color:var(--white)}
+.td-muted{color:var(--slate);font-size:12px}
+.td-mono{font-family:var(--mono);font-size:12px;color:var(--slate)}
+.td-amount{font-weight:700;font-family:var(--mono)}
+.td-teal{color:var(--teal)}.td-coral{color:var(--coral)}.td-gold{color:var(--gold)}
+td .btn-sm{padding:4px 10px;font-size:11px}
+
+/* ── BADGES ──────────────────────────────────── */
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap}
+.badge-teal{background:var(--teal-dim);color:var(--teal);border:1px solid rgba(0,212,170,.2)}
+.badge-gold{background:var(--gold-dim);color:var(--gold);border:1px solid rgba(245,200,66,.2)}
+.badge-coral{background:var(--coral-dim);color:var(--coral);border:1px solid rgba(255,107,107,.2)}
+.badge-purple{background:rgba(168,85,247,.12);color:#A855F7;border:1px solid rgba(168,85,247,.2)}
+.badge-slate{background:rgba(138,155,176,.1);color:var(--slate);border:1px solid rgba(138,155,176,.2)}
+.badge-green{background:rgba(34,197,94,.1);color:#4ADE80;border:1px solid rgba(34,197,94,.2)}
+
+/* ── SELECT / INPUT ──────────────────────────── */
+select{background:var(--navy-light);border:1px solid var(--navy-border);color:var(--white);border-radius:var(--radius-sm);padding:8px 12px;font-family:var(--font);font-size:13px;outline:none;cursor:pointer;transition:border-color var(--trans);width:100%}
+select:focus{border-color:var(--teal)}
+select option{background:var(--navy-mid)}
+input[type=text],input[type=date],input[type=time],input[type=number],input[type=password],input[type=range],textarea{
+  width:100%;padding:10px 14px;background:var(--navy-light);border:1px solid var(--navy-border);
+  border-radius:var(--radius-sm);color:var(--white);font-family:var(--font);font-size:13px;
+  outline:none;transition:all var(--trans);
+}
+input:focus,textarea:focus{border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-dim)}
+input::placeholder,textarea::placeholder{color:var(--slate-mid)}
+input[type=range]{padding:0;cursor:pointer;accent-color:var(--teal)}
+textarea{resize:vertical;min-height:80px;line-height:1.6}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.field-label{font-size:11px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+
+/* ── BROADCAST BOX ──────────────────────────── */
+.broadcast-box{
+  background:linear-gradient(135deg,rgba(245,200,66,.08),rgba(245,200,66,.04));
+  border:1px solid rgba(245,200,66,.25);border-radius:var(--radius);padding:20px;margin-bottom:20px;
+}
+.broadcast-title{font-size:13px;font-weight:700;color:var(--gold);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.broadcast-controls{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.delay-val{font-size:22px;font-weight:800;color:var(--gold);font-family:var(--mono);min-width:90px}
+.broadcast-sent{margin-top:12px;background:rgba(0,212,170,.08);border:1px solid rgba(0,212,170,.2);border-radius:var(--radius-sm);padding:10px 14px;font-size:12px;color:var(--teal)}
+
+/* ── MODAL ──────────────────────────────────── */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(6px);
+  display:none;align-items:center;justify-content:center;z-index:500;
+}
+.modal-overlay.open{display:flex}
+.modal{background:var(--navy-mid);border:1px solid var(--navy-border);border-radius:20px;width:560px;max-width:95vw;max-height:90vh;overflow-y:auto;animation:modalIn .2s ease}
+@keyframes modalIn{from{opacity:0;transform:scale(.96) translateY(12px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.modal-header{padding:20px 24px;border-bottom:1px solid var(--navy-border);display:flex;align-items:center;justify-content:space-between}
+.modal-title{font-size:16px;font-weight:800}
+.modal-close{background:none;border:none;color:var(--slate);cursor:pointer;font-size:20px;padding:0;line-height:1;transition:color var(--trans)}
+.modal-close:hover{color:var(--coral)}
+.modal-body{padding:24px}
+.modal-footer{padding:16px 24px;border-top:1px solid var(--navy-border);display:flex;gap:10px;justify-content:flex-end}
+
+/* ── DASHBOARD EXTRAS ────────────────────────── */
+.bar-wrap{margin-bottom:12px}
+.bar-meta{display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px}
+.bar-bg{background:var(--navy-light);border-radius:4px;height:8px;overflow:hidden}
+.bar-fill{height:100%;border-radius:4px;transition:width .9s cubic-bezier(.4,0,.2,1)}
+.source-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:13px}
+.source-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+/* ── COST ANALYSIS ────────────────────────────── */
+.cost-hero{
+  background:linear-gradient(135deg,rgba(0,212,170,.08),rgba(168,85,247,.06));
+  border:1px solid rgba(0,212,170,.2);border-radius:var(--radius);padding:24px;margin-bottom:20px;
+}
+.cost-hero-title{font-size:16px;font-weight:800;color:var(--teal);margin-bottom:4px}
+.cost-hero-sub{font-size:12px;color:var(--slate);margin-bottom:20px}
+.cost-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.cost-item{background:var(--navy-light);border:1px solid var(--navy-border);border-radius:var(--radius-sm);padding:16px}
+.cost-item-label{font-size:11px;color:var(--slate);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.cost-item-value{font-size:22px;font-weight:800;color:var(--white);font-family:var(--mono)}
+.cost-item-sub{font-size:11px;color:var(--slate);margin-top:4px}
+
+.service-price-card{
+  background:var(--navy-light);border:1px solid var(--navy-border);border-radius:var(--radius-sm);
+  padding:16px;display:flex;flex-direction:column;gap:8px;transition:all var(--trans);cursor:pointer;
+}
+.service-price-card:hover{border-color:rgba(0,212,170,.3);transform:translateY(-2px)}
+.spc-header{display:flex;align-items:center;gap:10px}
+.spc-emoji{font-size:24px}
+.spc-name{font-size:14px;font-weight:700;flex:1}
+.spc-price{font-size:20px;font-weight:800;color:var(--teal);font-family:var(--mono)}
+.spc-margin-bar{height:6px;background:var(--navy-border);border-radius:3px;overflow:hidden;margin-top:4px}
+.spc-margin-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--coral),var(--gold),var(--teal))}
+.spc-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--slate);margin-top:2px}
+
+.fixed-cost-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:13px}
+.fixed-cost-row:last-child{border-bottom:none}
+.fixed-cost-label{color:var(--slate)}
+.fixed-cost-value{font-weight:700;font-family:var(--mono);color:var(--white)}
+
+/* ── PROFIT CALCULATOR ─────────────────────────── */
+.calculator-wrap{background:var(--navy);border-radius:var(--radius-sm);padding:20px;border:1px solid var(--navy-border)}
+.calc-result{
+  margin-top:16px;padding:16px;background:var(--teal-dim);border:1px solid rgba(0,212,170,.3);
+  border-radius:var(--radius-sm);font-family:var(--mono);font-size:13px;line-height:2;
+}
+.calc-highlight{font-size:22px;font-weight:800;color:var(--teal)}
+
+/* ── CHATBOT ─────────────────────────────────── */
+.chat-layout{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+.flow-step{display:flex;align-items:flex-start;gap:10px;margin-bottom:4px}
+.flow-line{width:2px;height:28px;background:var(--navy-border);margin:0 auto}
+.flow-node{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer;flex-shrink:0;border:2px solid transparent;transition:all var(--trans)}
+.flow-node:hover{transform:scale(1.08)}
+.flow-node.active-node{box-shadow:0 0 0 3px var(--teal-dim)}
+.flow-meta{flex:1;padding-top:6px}
+.flow-label{font-size:13px;font-weight:700}
+.flow-detail{margin-top:6px;padding:8px 12px;border-radius:var(--radius-sm);font-size:12px;line-height:1.7}
+.flow-type-chip{font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;margin-top:6px;flex-shrink:0;letter-spacing:.3px}
+.chat-sim{display:flex;flex-direction:column;height:500px;background:var(--navy);border-radius:var(--radius);overflow:hidden;border:1px solid var(--navy-border)}
+.chat-topbar{padding:12px 16px;background:var(--navy-mid);border-bottom:1px solid var(--navy-border);display:flex;align-items:center;gap:10px}
+.chat-avatar{width:32px;height:32px;border-radius:50%;background:var(--teal-dim);display:flex;align-items:center;justify-content:center;font-size:16px}
+.chat-bot-name{font-size:13px;font-weight:700}
+.chat-bot-status{font-size:11px;color:var(--teal)}
+.chat-messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px;scrollbar-width:thin;scrollbar-color:var(--navy-border) transparent}
+.msg-row{display:flex}
+.msg-row.user{justify-content:flex-start}
+.msg-row.bot{justify-content:flex-end}
+.msg-bubble{max-width:78%;padding:10px 14px;font-size:13px;line-height:1.6;white-space:pre-wrap}
+.msg-row.bot .msg-bubble{background:var(--teal);color:var(--navy);border-radius:18px 18px 4px 18px;font-weight:600}
+.msg-row.user .msg-bubble{background:var(--navy-light);color:var(--white);border-radius:18px 18px 18px 4px;border:1px solid var(--navy-border)}
+.quick-btns{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 12px;justify-content:flex-start}
+.quick-btn{
+  padding:6px 12px;border-radius:20px;font-size:12px;cursor:pointer;font-family:var(--font);
+  background:var(--teal-dim);color:var(--teal);border:1px solid rgba(0,212,170,.3);
+  font-weight:700;transition:all var(--trans);
+}
+.quick-btn:hover{background:rgba(0,212,170,.25)}
+.chat-input-row{padding:12px 16px;border-top:1px solid var(--navy-border);display:flex;gap:10px;background:var(--navy-mid)}
+.chat-input{flex:1;padding:10px 14px;background:var(--navy-light);border:1px solid var(--navy-border);border-radius:24px;color:var(--white);font-family:var(--font);font-size:13px;outline:none;transition:border-color var(--trans)}
+.chat-input:focus{border-color:var(--teal)}
+.chat-send{background:var(--teal);color:var(--navy);border:none;border-radius:50%;width:38px;height:38px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all var(--trans)}
+.chat-send:hover{background:#00f0c0;box-shadow:0 4px 12px var(--teal-glow)}
+.chat-send:disabled{background:var(--navy-border);cursor:not-allowed;box-shadow:none}
+.typing-indicator{display:flex;align-items:center;gap:4px;padding:10px 14px;background:var(--navy-light);border-radius:18px 18px 18px 4px;border:1px solid var(--navy-border);width:fit-content}
+.typing-dot{width:7px;height:7px;background:var(--slate);border-radius:50%;animation:bounce .9s infinite}
+.typing-dot:nth-child(2){animation-delay:.15s}
+.typing-dot:nth-child(3){animation-delay:.3s}
+@keyframes bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}
+
+/* ── PROMPT BOX ──────────────────────────────── */
+.prompt-box{background:var(--navy);border:1px solid var(--navy-border);border-radius:var(--radius-sm);padding:16px;font-family:var(--mono);font-size:12px;line-height:1.9;color:var(--slate);white-space:pre-wrap;direction:rtl;max-height:260px;overflow-y:auto}
+
+/* ── SETTINGS PAGE ────────────────────────────── */
+.settings-section{margin-bottom:28px}
+.settings-section-title{font-size:13px;font-weight:800;color:var(--teal);text-transform:uppercase;letter-spacing:.6px;margin-bottom:16px;display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--navy-border)}
+.color-swatch-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.color-swatch-item{display:flex;align-items:center;gap:10px;background:var(--navy-light);padding:10px 14px;border-radius:var(--radius-sm);border:1px solid var(--navy-border)}
+.color-swatch-item input[type=color]{width:36px;height:36px;padding:0;border:none;border-radius:8px;cursor:pointer;background:none;flex-shrink:0}
+.color-swatch-label{font-size:12px;color:var(--slate);flex:1}
+.settings-info{background:var(--gold-dim);border:1px solid rgba(245,200,66,.25);border-radius:var(--radius-sm);padding:12px 16px;font-size:12px;color:var(--gold);margin-bottom:20px;line-height:1.8}
+
+/* ── FORMULA ROWS ─────────────────────────────── */
+.formula-row{display:grid;grid-template-columns:1fr 2fr auto;gap:12px;padding:10px 14px;border-radius:var(--radius-sm);align-items:center;font-size:12px}
+.formula-row:nth-child(odd){background:rgba(255,255,255,.03)}
+.formula-code{font-family:var(--mono);font-size:11px;color:#A855F7;word-break:break-all}
+.formula-result{font-family:var(--mono);font-weight:800;color:var(--teal);white-space:nowrap;text-align:left}
+
+/* ── PERM NOTICE ─────────────────────────────── */
+.perm-notice{
+  background:rgba(245,200,66,.07);border:1px solid rgba(245,200,66,.2);border-radius:var(--radius-sm);
+  padding:10px 16px;display:flex;align-items:center;gap:10px;font-size:12px;color:var(--gold);margin-bottom:20px;
+}
+
+/* ── EMPTY / TOAST / MISC ────────────────────── */
+.empty-state{text-align:center;padding:60px 20px;color:var(--slate)}
+.empty-icon{font-size:40px;margin-bottom:12px;opacity:.5}
+.toast{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);
+  background:var(--teal);color:var(--navy);padding:12px 24px;border-radius:30px;
+  font-size:13px;font-weight:700;z-index:9999;transition:transform .3s ease;pointer-events:none;
+  box-shadow:0 8px 24px var(--teal-glow);
+}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.hidden{display:none!important}
+.section{display:none}
+.section.active{display:block}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.divider{height:1px;background:var(--navy-border);margin:16px 0}
+@media(max-width:900px){.two-col,.three-col,.form-grid,.form-grid-3,.chat-layout{grid-template-columns:1fr}}
+
+/* ── APPOINTMENT DELETE BTN ────────────────────── */
+.delete-btn{
+  background:none;border:none;color:var(--slate-mid);cursor:pointer;font-size:14px;
+  padding:4px;border-radius:4px;transition:color var(--trans);
+}
+.delete-btn:hover{color:var(--coral)}
+</style>
+</head>
+<body>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo-wrap" id="login-logo-wrap"></div>
+    <div class="login-title" id="login-title"></div>
+    <div class="login-sub" id="login-sub">نظام الإدارة الذكي — الإصدار التجريبي</div>
+    <div class="login-specialty" id="login-specialty"></div>
+    <div class="login-error hidden" id="login-error"></div>
+    <div class="form-group">
+      <label class="form-label">اسم المستخدم</label>
+      <input class="form-input" id="inp-user" placeholder="owner  أو  secretary" autocomplete="off"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">كلمة المرور</label>
+      <div class="input-wrap">
+        <input class="form-input" id="inp-pass" type="password" placeholder="••••••••" autocomplete="off"/>
+        <button class="eye-btn" id="eye-btn" type="button">👁</button>
+      </div>
+    </div>
+    <button class="login-btn" id="login-btn">دخول إلى النظام</button>
+    <div class="demo-creds">
+      <div class="demo-title">بيانات الدخول التجريبية</div>
+      <div class="demo-row"><span>الدكتور (مالك):</span><code id="demo-owner-creds"></code></div>
+      <div class="demo-row"><span>السكرتيرة:</span><code id="demo-sec-creds"></code></div>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-logo-wrap" id="sidebar-logo-wrap"></div>
+      <div class="brand-text">
+        <div class="brand-name" id="sidebar-clinic-name"></div>
+        <div class="brand-sub">نظام الإدارة الذكي</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav" id="sidebar-nav"></nav>
+    <div class="sidebar-user">
+      <div class="user-card">
+        <div class="user-avatar" id="user-avatar"></div>
+        <div>
+          <div class="user-name" id="user-name"></div>
+          <div class="user-role" id="user-role-label"></div>
+        </div>
+        <button class="logout-btn" id="logout-btn" title="خروج">⏻</button>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <div class="topbar-title" id="topbar-title">لوحة التحكم</div>
+        <div class="topbar-sub" id="topbar-sub">مرحباً 👋</div>
+      </div>
+      <div class="topbar-right">
+        <div class="topbar-date" id="topbar-date"></div>
+        <div class="status-dot">النظام يعمل</div>
+      </div>
+    </div>
+    <div class="content" id="content-area">
+
+      <!-- ══ DASHBOARD ══ -->
+      <div class="section" id="sec-dashboard">
+        <div class="metrics-grid">
+          <div class="metric-card teal"><div class="metric-icon">📈</div><div class="metric-label">صافي الدخل</div><div class="metric-value teal" id="d-net">—</div></div>
+          <div class="metric-card gold"><div class="metric-icon">💰</div><div class="metric-label">إجمالي الإيرادات</div><div class="metric-value gold" id="d-rev">—</div></div>
+          <div class="metric-card coral"><div class="metric-icon">💸</div><div class="metric-label">إجمالي المصاريف</div><div class="metric-value coral" id="d-exp">—</div></div>
+          <div class="metric-card purple"><div class="metric-icon">⏳</div><div class="metric-label">ديون متبقية</div><div class="metric-value purple" id="d-pend">—</div></div>
+          <div class="metric-card teal"><div class="metric-icon">👥</div><div class="metric-label">إجمالي المرضى</div><div class="metric-value white" id="d-patients">—</div></div>
+          <div class="metric-card gold"><div class="metric-icon">✅</div><div class="metric-label">نسبة الحضور</div><div class="metric-value gold" id="d-attend">—</div></div>
+        </div>
+        <div class="two-col">
+          <div class="panel">
+            <div class="panel-header"><div class="panel-title">📊 توزيع الخدمات</div></div>
+            <div class="panel-body" id="svc-bars"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-header"><div class="panel-title">📡 مصادر الحجوزات</div></div>
+            <div class="panel-body" id="src-rows"></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><div class="panel-title">📐 معادلات Google Sheets الجاهزة</div><span style="font-size:11px;color:var(--slate)">انسخ وضع في جدولك مباشرةً</span></div>
+          <div class="panel-body" id="formulas-list"></div>
+        </div>
+      </div>
+
+      <!-- ══ APPOINTMENTS ══ -->
+      <div class="section" id="sec-appointments">
+        <div class="metrics-grid" id="appt-metrics"></div>
+        <div class="broadcast-box">
+          <div class="broadcast-title">🚨 تنبيه طوارئ — إرسال جماعي لمرضى اليوم</div>
+          <div class="broadcast-controls">
+            <span style="color:var(--slate);font-size:13px">مدة التأخير:</span>
+            <input type="range" id="delay-slider" min="5" max="120" step="5" value="30" style="width:120px"/>
+            <div class="delay-val"><span id="delay-val">30</span> د</div>
+            <button class="btn btn-gold" id="broadcast-btn">📢 إرسال للمرضى</button>
+          </div>
+          <div class="broadcast-sent hidden" id="broadcast-msg"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-header">
+            <div class="pill-group" id="appt-filters"></div>
+            <button class="btn btn-primary btn-sm" id="btn-add-appt">+ حجز جديد</button>
+          </div>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr>
+                <th>المريض</th><th>الهاتف</th><th>الخدمة</th><th>الميعاد</th><th>الحالة</th><th>المصدر</th><th>تذكير</th><th>حذف</th>
+              </tr></thead>
+              <tbody id="appt-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ FINANCE ══ -->
+      <div class="section" id="sec-finance">
+        <div class="metrics-grid" id="fin-metrics"></div>
+        <div class="panel">
+          <div class="panel-header">
+            <div class="pill-group" id="fin-tabs"></div>
+            <button class="btn btn-primary btn-sm" id="btn-add-fin">+ إضافة سجل</button>
+          </div>
+          <div class="tbl-wrap">
+            <table>
+              <thead id="fin-thead"></thead>
+              <tbody id="fin-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ COST ANALYSIS ══ -->
+      <div class="section" id="sec-costs">
+        <div class="cost-hero">
+          <div class="cost-hero-title">📊 تحليل التكاليف الشامل</div>
+          <div class="cost-hero-sub">مبني على ملف Excel الخاص بالعيادة — التكاليف الثابتة والمتغيرة</div>
+          <div class="cost-grid" id="cost-hero-grid"></div>
+        </div>
+
+        <div class="two-col">
+          <div class="panel">
+            <div class="panel-header"><div class="panel-title">🏗️ المصاريف الثابتة الشهرية</div></div>
+            <div class="panel-body">
+              <div id="fixed-costs-list"></div>
+              <div class="divider"></div>
+              <div style="display:flex;justify-content:space-between;align-items:center;font-weight:800">
+                <span>إجمالي التكاليف الثابتة / ساعة</span>
+                <span style="color:var(--teal);font-family:var(--mono)" id="cost-per-hr">—</span>
+              </div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-header"><div class="panel-title">🧮 حاسبة الربحية</div></div>
+            <div class="panel-body">
+              <div class="calculator-wrap">
+                <div class="field-label">اختر الخدمة</div>
+                <select id="calc-service" style="margin-bottom:12px"></select>
+                <div class="field-label">سعر البيع (جنيه)</div>
+                <input type="number" id="calc-price" placeholder="أدخل السعر..." style="margin-bottom:12px"/>
+                <div class="field-label">عدد الحالات في الشهر</div>
+                <input type="number" id="calc-cases" value="20" style="margin-bottom:12px"/>
+                <button class="btn btn-primary" style="width:100%" onclick="calcProfit()">🔢 احسب الربحية</button>
+                <div class="calc-result hidden" id="calc-result"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header"><div class="panel-title">💰 الحد الأدنى لأسعار الخدمات (من Excel)</div><span style="font-size:11px;color:var(--slate)">السعر = تكلفة متغيرة + تكلفة وقت</span></div>
+          <div class="panel-body">
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px" id="service-price-cards"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ CHATBOT ══ -->
+      <div class="section" id="sec-chatbot">
+        <div class="chat-layout">
+          <div class="panel" style="margin-bottom:0">
+            <div class="panel-header"><div class="panel-title">🔄 خطوات الـ Flow</div><span style="font-size:11px;color:var(--slate)">اضغط لرؤية التفاصيل</span></div>
+            <div class="panel-body" id="flow-steps"></div>
+          </div>
+          <div class="chat-sim">
+            <div class="chat-topbar">
+              <div class="chat-avatar">🤖</div>
+              <div>
+                <div class="chat-bot-name" id="chatbot-name">دكتور بوت</div>
+                <div class="chat-bot-status">● متاح الآن</div>
+              </div>
+            </div>
+            <div class="chat-messages" id="chat-messages"></div>
+            <div class="quick-btns" id="quick-btns"></div>
+            <div class="chat-input-row">
+              <input class="chat-input" id="chat-input" placeholder="اكتب رسالتك هنا..."/>
+              <button class="chat-send" id="chat-send-btn">➤</button>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">System Prompt — AI Card</div>
+            <button class="btn btn-ghost btn-sm" id="copy-prompt-btn">نسخ الـ Prompt</button>
+          </div>
+          <div class="panel-body">
+            <div class="prompt-box" id="prompt-display"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ SETTINGS ══ -->
+      <div class="section" id="sec-settings">
+        <div class="settings-info">
+          💡 <strong>للمطورين:</strong> افتح ملف index.html في أي محرر نصوص وعدّل قسم <code style="background:rgba(0,0,0,.2);padding:2px 6px;border-radius:4px">CLINIC_CONFIG</code> في أعلى الملف لتغيير اسم العيادة والدكتور والألوان وكلمات المرور. لا تحتاج معرفة برمجية!
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-section-title">🏥 هوية العيادة</div>
+          <div class="form-grid">
+            <div><div class="field-label">اسم العيادة</div><input type="text" id="s-clinic-name" placeholder="اسم العيادة"/></div>
+            <div><div class="field-label">اسم الدكتور</div><input type="text" id="s-doctor-name" placeholder="د. ..."/></div>
+            <div><div class="field-label">التخصص</div><input type="text" id="s-specialty" placeholder="طب وجراحة الأسنان"/></div>
+            <div><div class="field-label">رقم التواصل</div><input type="text" id="s-phone" placeholder="01xxxxxxxxx"/></div>
+            <div><div class="field-label">لوجو (URL أو مسار صورة)</div><input type="text" id="s-logo-url" placeholder="logo.png أو https://..."/></div>
+            <div><div class="field-label">إيموجي اللوجو (بديل)</div><input type="text" id="s-logo-emoji" placeholder="🦷"/></div>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-section-title">🎨 الألوان والمظهر</div>
+          <div class="color-swatch-grid" id="color-swatches"></div>
+          <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn btn-primary btn-sm" onclick="applySettingsColors()">✅ تطبيق الألوان</button>
+            <button class="btn btn-ghost btn-sm" onclick="resetColors()">↺ إعادة الضبط</button>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-section-title">🔑 كلمات المرور</div>
+          <div class="form-grid">
+            <div>
+              <div class="field-label">كلمة مرور الدكتور</div>
+              <div class="input-wrap"><input type="password" id="s-owner-pass" placeholder="••••••••"/><button class="eye-btn" onclick="toggleEye('s-owner-pass',this)" style="position:absolute;left:12px;top:50%;transform:translateY(-50%)">👁</button></div>
+            </div>
+            <div>
+              <div class="field-label">كلمة مرور السكرتيرة</div>
+              <div class="input-wrap"><input type="password" id="s-sec-pass" placeholder="••••••••"/><button class="eye-btn" onclick="toggleEye('s-sec-pass',this)" style="position:absolute;left:12px;top:50%;transform:translateY(-50%)">👁</button></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-section-title">🔥 Firebase</div>
+          <div id="firebase-status-panel" style="background:var(--navy);border:1px solid var(--navy-border);border-radius:var(--radius-sm);padding:16px;margin-bottom:16px">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+              <div id="fb-panel-dot" style="width:10px;height:10px;border-radius:50%;background:var(--slate);flex-shrink:0"></div>
+              <span id="fb-panel-status" style="font-size:13px;font-weight:700">جاري الاتصال بـ Firebase...</span>
+            </div>
+            <div style="font-size:11px;color:var(--slate);line-height:1.8">
+              عدّل قيم <code style="background:rgba(0,0,0,.3);padding:2px 6px;border-radius:3px;font-size:10px">FIREBASE_CONFIG</code> في أعلى الملف بمفاتيح مشروعك.<br>
+              الخطوات: Firebase Console → Project Settings → Your apps → SDK setup → Config
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" onclick="checkFirebaseStatus()">🔄 تحديث حالة الاتصال</button>
+            <button class="btn btn-gold btn-sm" onclick="seedFirebase()">🌱 رفع البيانات التجريبية</button>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="saveSettings()">💾 حفظ الإعدادات</button>
+          <button class="btn btn-ghost" onclick="exportConfig()">📤 تصدير Config</button>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </main>
+</div><!-- /app -->
+
+<!-- ══ MODALS ══ -->
+
+<!-- Add Appointment -->
+<div class="modal-overlay" id="modal-appt">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">📅 حجز جديد</div>
+      <button class="modal-close" data-close="modal-appt">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div><div class="field-label">الاسم</div><input type="text" id="f-name" placeholder="اسم المريض"/></div>
+        <div><div class="field-label">الهاتف</div><input type="text" id="f-phone" placeholder="01xxxxxxxxx"/></div>
+        <div><div class="field-label">التاريخ</div><input type="date" id="f-date"/></div>
+        <div><div class="field-label">الوقت</div><input type="time" id="f-time"/></div>
+        <div><div class="field-label">الخدمة</div><select id="f-service"></select></div>
+        <div>
+          <div class="field-label">المصدر</div>
+          <select id="f-source"><option>Phone</option><option>ManyChat</option><option>Walk-in</option><option>WhatsApp</option><option>Instagram</option></select>
+        </div>
+      </div>
+      <div style="margin-top:12px"><div class="field-label">ملاحظات</div><textarea id="f-notes" placeholder="أي ملاحظات..." style="height:60px"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" data-close="modal-appt">إلغاء</button>
+      <button class="btn btn-primary" id="save-appt-btn">💾 حفظ الحجز</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Finance -->
+<div class="modal-overlay" id="modal-fin">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">💰 إضافة سجل مالي</div>
+      <button class="modal-close" data-close="modal-fin">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div><div class="field-label">التاريخ</div><input type="date" id="ff-date"/></div>
+        <div><div class="field-label">اسم المريض</div><input type="text" id="ff-patient" placeholder="اسم المريض"/></div>
+        <div><div class="field-label">الخدمة</div><select id="ff-service"></select></div>
+        <div><div class="field-label">إجمالي الحساب</div><input type="number" id="ff-total" placeholder="0"/></div>
+        <div><div class="field-label">المدفوع</div><input type="number" id="ff-paid" placeholder="0"/></div>
+        <div>
+          <div class="field-label">طريقة الدفع</div>
+          <select id="ff-method"><option>كاش</option><option>فودافون كاش</option><option>InstaPay</option><option>تحويل بنكي</option></select>
+        </div>
+        <div>
+          <div class="field-label">حالة القسط</div>
+          <select id="ff-inst"><option>مدفوع</option><option>منتظر</option><option>متأخر</option></select>
+        </div>
+        <div><div class="field-label">ميعاد القسط القادم</div><input type="date" id="ff-instdate"/></div>
+      </div>
+      <div id="expense-fields-wrapper" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--navy-border)">
+        <div class="field-label" style="margin-bottom:10px">مصاريف (الدكتور فقط)</div>
+        <div class="form-grid">
+          <div><div class="field-label">نوع المصروف</div><input type="text" id="ff-exptype" placeholder="إيجار، أدوات..."/></div>
+          <div><div class="field-label">قيمة المصروف</div><input type="number" id="ff-expamt" placeholder="0"/></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" data-close="modal-fin">إلغاء</button>
+      <button class="btn btn-primary" id="save-fin-btn">💾 حفظ السجل</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════
+//  APPLY CONFIG TO DOM
+// ════════════════════════════════════════════════
+function applyConfig(){
+  const C = CLINIC_CONFIG;
+
+  // Page title
+  document.getElementById("page-title").textContent = C.clinicName + " | نظام الإدارة الذكي";
+
+  // Login page
+  const logoWrap = document.getElementById("login-logo-wrap");
+  if(C.logoUrl){
+    logoWrap.innerHTML = `<img src="${C.logoUrl}" class="login-logo-img" alt="logo" onerror="this.style.display='none';document.getElementById('login-logo-fallback').style.display='block'"/><div id="login-logo-fallback" class="login-logo-emoji" style="display:none">${C.logoEmoji}</div>`;
+  } else {
+    logoWrap.innerHTML = `<div class="login-logo-emoji">${C.logoEmoji}</div>`;
+  }
+  document.getElementById("login-title").textContent = C.clinicName;
+  document.getElementById("login-specialty").textContent = C.specialty;
+  document.getElementById("demo-owner-creds").textContent = C.ownerUser + " / " + C.ownerPass;
+  document.getElementById("demo-sec-creds").textContent = C.secretaryUser + " / " + C.secretaryPass;
+
+  // Sidebar logo
+  const sideLogoWrap = document.getElementById("sidebar-logo-wrap");
+  if(C.logoUrl){
+    sideLogoWrap.innerHTML = `<img src="${C.logoUrl}" class="brand-logo-img" alt="logo" onerror="this.innerHTML='${C.logoEmoji}'"/>`;
+  } else {
+    sideLogoWrap.innerHTML = `<div class="brand-logo-emoji">${C.logoEmoji}</div>`;
+  }
+  document.getElementById("sidebar-clinic-name").textContent = C.clinicName;
+
+  // Chatbot name
+  document.getElementById("chatbot-name").textContent = "بوت " + C.clinicName;
+
+  // Apply colors
+  applyTheme(C.colors);
+
+  // Populate service dropdowns
+  const services = Object.keys(C.services);
+  ["f-service","ff-service","calc-service"].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el){
+      el.innerHTML = services.map(s=>`<option value="${s}">${C.services[s].emoji} ${s}</option>`).join("");
+    }
+  });
+
+  // Topbar date
+  document.getElementById("topbar-date").textContent = new Date().toLocaleDateString("ar-EG",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
+
+  // Load settings into settings page
+  document.getElementById("s-clinic-name").value = C.clinicName;
+  document.getElementById("s-doctor-name").value = C.doctorName;
+  document.getElementById("s-specialty").value = C.specialty;
+  document.getElementById("s-phone").value = C.phone;
+  document.getElementById("s-logo-url").value = C.logoUrl;
+  document.getElementById("s-logo-emoji").value = C.logoEmoji;
+  document.getElementById("s-owner-pass").value = C.ownerPass;
+  document.getElementById("s-sec-pass").value = C.secretaryPass;
+
+  // Color swatches
+  renderColorSwatches();
+}
+
+function applyTheme(colors){
+  const root = document.documentElement;
+  root.style.setProperty("--teal", colors.accent || "#00D4AA");
+  root.style.setProperty("--teal-glow", colors.accentGlow || "rgba(0,212,170,.35)");
+  root.style.setProperty("--teal-dim", colors.accentDim || "rgba(0,212,170,.15)");
+  root.style.setProperty("--navy", colors.navy || "#0A1628");
+  root.style.setProperty("--navy-mid", colors.navyMid || "#0F1E38");
+  root.style.setProperty("--navy-light", colors.navyLight || "#162440");
+  root.style.setProperty("--navy-border", colors.navyBorder || "#1E3255");
+  root.style.setProperty("--gold", colors.gold || "#F5C842");
+  root.style.setProperty("--gold-dim", colors.goldDim || "rgba(245,200,66,.12)");
+  root.style.setProperty("--coral", colors.coral || "#FF6B6B");
+  root.style.setProperty("--coral-dim", colors.coralDim || "rgba(255,107,107,.12)");
+  root.style.setProperty("--slate", colors.slate || "#8A9BB0");
+  root.style.setProperty("--slate-mid", colors.slateMid || "#4A5F7A");
+}
+
+function renderColorSwatches(){
+  const C = CLINIC_CONFIG;
+  const colorDefs = [
+    {key:"navy",       label:"خلفية رئيسية"},
+    {key:"navyMid",    label:"خلفية الكاردات"},
+    {key:"navyLight",  label:"خلفية الحقول"},
+    {key:"navyBorder", label:"لون الحدود"},
+    {key:"accent",     label:"اللون الأساسي (Accent)"},
+    {key:"gold",       label:"اللون الذهبي"},
+    {key:"coral",      label:"اللون الأحمر"},
+    {key:"slate",      label:"لون النص الثانوي"},
+  ];
+  document.getElementById("color-swatches").innerHTML = colorDefs.map(d=>`
+    <div class="color-swatch-item">
+      <input type="color" id="clr-${d.key}" value="${C.colors[d.key]||'#000000'}" title="${d.label}"/>
+      <span class="color-swatch-label">${d.label}</span>
+    </div>`).join("");
+}
+
+function applySettingsColors(){
+  const keys = ["navy","navyMid","navyLight","navyBorder","accent","gold","coral","slate"];
+  keys.forEach(k=>{
+    const el = document.getElementById("clr-"+k);
+    if(el){
+      CLINIC_CONFIG.colors[k] = el.value;
+      // Update derived values
+      if(k==="accent"){
+        const hex = el.value;
+        const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+        CLINIC_CONFIG.colors.accentGlow = `rgba(${r},${g},${b},.35)`;
+        CLINIC_CONFIG.colors.accentDim  = `rgba(${r},${g},${b},.15)`;
+      }
+    }
+  });
+  applyTheme(CLINIC_CONFIG.colors);
+  showToast("✅ تم تطبيق الألوان!");
+}
+
+function resetColors(){
+  CLINIC_CONFIG.colors = {
+    navy:"#0A1628",navyMid:"#0F1E38",navyLight:"#162440",navyBorder:"#1E3255",
+    accent:"#00D4AA",accentGlow:"rgba(0,212,170,.35)",accentDim:"rgba(0,212,170,.15)",
+    gold:"#F5C842",goldDim:"rgba(245,200,66,.12)",coral:"#FF6B6B",coralDim:"rgba(255,107,107,.12)",
+    slate:"#8A9BB0",slateMid:"#4A5F7A",
+  };
+  applyTheme(CLINIC_CONFIG.colors);
+  renderColorSwatches();
+  showToast("↺ تم إعادة الضبط");
+}
+
+function saveSettings(){
+  CLINIC_CONFIG.clinicName = document.getElementById("s-clinic-name").value || CLINIC_CONFIG.clinicName;
+  CLINIC_CONFIG.doctorName  = document.getElementById("s-doctor-name").value || CLINIC_CONFIG.doctorName;
+  CLINIC_CONFIG.specialty   = document.getElementById("s-specialty").value || CLINIC_CONFIG.specialty;
+  CLINIC_CONFIG.phone       = document.getElementById("s-phone").value || CLINIC_CONFIG.phone;
+  CLINIC_CONFIG.logoUrl     = document.getElementById("s-logo-url").value;
+  CLINIC_CONFIG.logoEmoji   = document.getElementById("s-logo-emoji").value || CLINIC_CONFIG.logoEmoji;
+  const newOwnerPass = document.getElementById("s-owner-pass").value;
+  const newSecPass   = document.getElementById("s-sec-pass").value;
+  if(newOwnerPass) CLINIC_CONFIG.ownerPass = newOwnerPass;
+  if(newSecPass)   CLINIC_CONFIG.secretaryPass = newSecPass;
+  USERS.owner.password    = CLINIC_CONFIG.ownerPass;
+  USERS.secretary.password= CLINIC_CONFIG.secretaryPass;
+  USERS.owner.name        = CLINIC_CONFIG.doctorName;
+  applyConfig();
+  showToast("✅ تم حفظ الإعدادات!");
+}
+
+function exportConfig(){
+  const code = `// CLINIC_CONFIG — انسخ هذا في أعلى الملف لاستبدال الـ Config الحالي\nconst CLINIC_CONFIG = ${JSON.stringify(CLINIC_CONFIG, null, 2)};`;
+  const blob = new Blob([code], {type:"text/javascript"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "clinic-config.js";
+  a.click();
+  showToast("📤 تم تصدير الـ Config!");
+}
+
+function toggleEye(inputId, btn){
+  const el = document.getElementById(inputId);
+  el.type = el.type==="password" ? "text" : "password";
+  btn.textContent = el.type==="password" ? "👁" : "🙈";
+}
+
+// ════════════════════════════════════════════════
+//  DATA  — arrays kept in memory, synced FROM Firebase in real-time
+// ════════════════════════════════════════════════
+const USERS = {
+  owner:     { password:"doctor123", role:"owner",     name:"د. خالد محمد",    initials:"خم", greeting:"مرحباً يا دكتور 👋" },
+  secretary: { password:"clinic456", role:"secretary", name:"سكرتيرة العيادة", initials:"سك", greeting:"أهلاً بك 👋" },
+};
+
+// Seed shown only when Firebase returns empty database (first run)
+const SEED_APPOINTMENTS = [
+  { fbId:null, timestamp:"2025-01-15 09:00", name:"أحمد محمد علي",  phone:"01012345678", service:"تقويم", date:"2025-01-20", time:"10:00", status:"مؤكد", source:"ManyChat", notes:"", reminderSent:false },
+  { fbId:null, timestamp:"2025-01-15 10:30", name:"سارة إبراهيم",   phone:"01098765432", service:"تبييض",date:"2025-01-20", time:"11:30", status:"جديد", source:"Phone",    notes:"تطلب الدكتور", reminderSent:false },
+  { fbId:null, timestamp:"2025-01-15 11:00", name:"محمود حسن",      phone:"01155667788", service:"حشو",   date:"2025-01-19", time:"09:00", status:"حضر",  source:"Walk-in",  notes:"", reminderSent:true  },
+];
+const SEED_FINANCE = [
+  { fbId:null, date:"2025-01-19", patient:"محمود حسن", phone:"01155667788", service:"حشو",   total:800, paid:800, method:"كاش",  installmentDate:"", installmentStatus:"مدفوع", expenseType:"",      expenseAmount:0,   notes:"" },
+  { fbId:null, date:"2025-01-19", patient:"عيادة",      phone:"",           service:"",       total:0,   paid:0,   method:"",    installmentDate:"", installmentStatus:"",       expenseType:"أدوات", expenseAmount:500, notes:"مواد تعقيم" },
+];
+
+// Live in-memory — updated by Firebase onValue listeners
+let appointments   = [...SEED_APPOINTMENTS];
+let financeRecords = [...SEED_FINANCE];
+let fbConnected    = false;   // flips true after first Firebase response
+
+// Dynamic system prompt built from CLINIC_CONFIG
+function buildSystemPrompt(){
+  const C = CLINIC_CONFIG;
+  const svcList = Object.entries(C.services).map(([k,v])=>`- ${k}: من ${v.price.toLocaleString("ar-EG")} جنيه`).join("\n");
+  return `أنت "بوت ${C.clinicName}"، المساعد الذكي الرسمي لـ${C.clinicName}.
+بتتكلم بلهجة مصرية عامية راقية ومحترمة، وبتعامل كل مريض باهتمام وود.
+
+شخصيتك: ودود، محترم، واثق من نفسه.
+تستخدم: "حاضر يافندم"، "إن شاء الله"، إيموجي باعتدال 😊
+
+داتا العيادة:
+${svcList}
+- مواعيد: ${C.workDays} ${C.workHours}
+- تواصل: ${C.phone}
+
+قواعد صارمة:
+1. لا تخترع أسعار خارج الداتا
+2. دايماً وجّه للحجز في نهاية كل رد
+3. لا تتكلم خارج نطاق العيادة
+4. للشكاوى: "هعدي الموضوع للمسؤول"
+5. لا تعطي تشخيصات طبية`;
+}
+
+const CHATBOT_FLOW_STEPS = [
+  { id:"trigger", icon:"⚡", label:"مريض يرسل رسالة",        type:"trigger", color:"#4A5F7A", bg:"rgba(74,95,122,.15)",   detail:"الكلمات المفتاحية: تقويم، تبييض، سعر، حجز، أهلا، مرحبا" },
+  { id:"ai",      icon:"🤖", label:"رسالة ترحيب ذكية",        type:"ai",      color:"#A855F7", bg:"rgba(168,85,247,.15)", detail:"AI Card بـ System Prompt — Claude يرد تلقائياً" },
+  { id:"buttons", icon:"🔘", label:"قائمة الخدمات",           type:"buttons", color:"#00D4AA", bg:"rgba(0,212,170,.15)",  detail:"أزرار: أسعار الخدمات / حجز ميعاد" },
+  { id:"info",    icon:"💬", label:"معلومات الخدمة",          type:"message", color:"#60A5FA", bg:"rgba(96,165,250,.12)", detail:"البوت يشرح السعر والتفاصيل ويحفّز على الحجز" },
+  { id:"collect", icon:"✏️", label:"جمع بيانات المريض",       type:"input",   color:"#F5C842", bg:"rgba(245,200,66,.12)", detail:"يجمع: الاسم ← رقم الهاتف ← الوقت المفضل" },
+  { id:"webhook", icon:"⚙️", label:"إرسال لـ Google Sheets",  type:"action",  color:"#4ADE80", bg:"rgba(74,222,128,.1)",  detail:"Webhook → Apps Script → يُسجّل تلقائياً في Live Calendar" },
+  { id:"confirm", icon:"✅", label:"رسالة تأكيد الحجز",       type:"message", color:"#00D4AA", bg:"rgba(0,212,170,.15)", detail:"يرسل تأكيد بالتاريخ والوقت ورقم التواصل" },
+];
+
+// ════════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════════
+let currentUser    = null;
+let currentSection = null;
+let apptFilter     = "الكل";
+let finTab         = "إيرادات";
+let chatHistory    = [];
+let chatApiHistory = [];
+let activeFlowStep = null;
+
+// ════════════════════════════════════════════════
+//  UTILS
+// ════════════════════════════════════════════════
+function fmt(n){ return Number(n).toLocaleString("ar-EG") + " ج" }
+function showToast(msg, type="success"){
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.style.background = type==="error" ? "var(--coral)" : "var(--teal)";
+  t.style.color      = type==="error" ? "#fff" : "var(--navy)";
+  t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"), 3000);
+}
+function badge(label){
+  const map = {
+    "جديد":"badge-purple","مؤكد":"badge-teal","حضر":"badge-green",
+    "غائب":"badge-coral","مؤجل":"badge-gold",
+    "مدفوع":"badge-green","منتظر":"badge-gold","متأخر":"badge-coral",
+  };
+  return `<span class="badge ${map[label]||'badge-slate'}">${label}</span>`;
+}
+
+// ════════════════════════════════════════════════
+//  LOGIN
+// ════════════════════════════════════════════════
+document.getElementById("eye-btn").onclick = ()=>{
+  const p = document.getElementById("inp-pass");
+  p.type = p.type==="password" ? "text" : "password";
+  document.getElementById("eye-btn").textContent = p.type==="password" ? "👁" : "🙈";
+};
+document.getElementById("login-btn").onclick = doLogin;
+document.getElementById("inp-pass").addEventListener("keydown",e=>e.key==="Enter"&&doLogin());
+document.getElementById("inp-user").addEventListener("keydown",e=>e.key==="Enter"&&doLogin());
+
+function doLogin(){
+  const u = document.getElementById("inp-user").value.trim().toLowerCase();
+  const p = document.getElementById("inp-pass").value;
+  const user = USERS[u];
+  const errEl = document.getElementById("login-error");
+  if(user && user.password===p){
+    currentUser = { username:u, ...user };
+    document.getElementById("login-screen").style.display="none";
+    document.getElementById("app").classList.add("visible");
+    window.initApp();
+  } else {
+    errEl.textContent = "اسم المستخدم أو كلمة المرور غلط ❌";
+    errEl.classList.remove("hidden");
+    setTimeout(()=>errEl.classList.add("hidden"),3000);
+    document.getElementById("inp-pass").value="";
+  }
+}
+
+// ════════════════════════════════════════════════
+//  INIT APP
+// ════════════════════════════════════════════════
+function initApp(){
+  const av = document.getElementById("user-avatar");
+  av.textContent = currentUser.initials;
+  av.className = `user-avatar ${currentUser.role}`;
+  document.getElementById("user-name").textContent = currentUser.name;
+  document.getElementById("user-role-label").textContent = currentUser.role==="owner" ? "مالك العيادة ⭐" : "سكرتيرة";
+  document.getElementById("topbar-sub").textContent = currentUser.greeting;
+
+  const ownerNav = [
+    { id:"dashboard",    icon:"📊", label:"لوحة التحكم",     section:"sec-dashboard"    },
+    { id:"appointments", icon:"📅", label:"المواعيد",         section:"sec-appointments", badge:appointments.filter(a=>a.status==="جديد").length||null },
+    { id:"finance",      icon:"💰", label:"الخزنة",           section:"sec-finance"      },
+    { id:"costs",        icon:"📈", label:"تحليل التكاليف",   section:"sec-costs"        },
+    { id:"chatbot",      icon:"🤖", label:"البوت الذكي",      section:"sec-chatbot"      },
+    { id:"settings",     icon:"⚙️", label:"الإعدادات",        section:"sec-settings"     },
+  ];
+  const secretaryNav = [
+    { id:"appointments", icon:"📅", label:"المواعيد",         section:"sec-appointments", badge:appointments.filter(a=>a.status==="جديد").length||null },
+    { id:"finance",      icon:"💰", label:"الخزنة",           section:"sec-finance"      },
+  ];
+  const navItems = currentUser.role==="owner" ? ownerNav : secretaryNav;
+  const nav = document.getElementById("sidebar-nav");
+  nav.innerHTML = "";
+  navItems.forEach(item=>{
+    const el = document.createElement("div");
+    el.className = "nav-item";
+    el.dataset.section = item.section;
+    el.dataset.id = item.id;
+    el.innerHTML = `<span class="nav-icon">${item.icon}</span><span>${item.label}</span>${item.badge?`<span class="nav-badge">${item.badge}</span>`:""}`;
+    el.onclick = ()=>navigateTo(item.id, item.section, item.label);
+    nav.appendChild(el);
+  });
+
+  if(currentUser.role==="secretary"){
+    const notice = document.createElement("div");
+    notice.className="perm-notice";
+    notice.innerHTML="⚠️ صلاحياتك محدودة: المواعيد والخزنة فقط";
+    const ca = document.getElementById("content-area");
+    ca.insertBefore(notice, ca.firstChild);
+    document.getElementById("expense-fields-wrapper").style.display="none";
+  }
+
+  document.getElementById("logout-btn").onclick = ()=>{
+    currentUser=null; chatHistory=[]; chatApiHistory=[];
+    document.getElementById("app").classList.remove("visible");
+    document.getElementById("login-screen").style.display="flex";
+    document.getElementById("inp-user").value="";
+    document.getElementById("inp-pass").value="";
+  };
+
+  const first = navItems[0];
+  navigateTo(first.id, first.section, first.label);
+  initModals();
+  initBroadcast();
+  initChatbot();
+}
+
+// ════════════════════════════════════════════════
+//  NAVIGATION
+// ════════════════════════════════════════════════
+function navigateTo(id, sectionId, label){
+  document.querySelectorAll(".nav-item").forEach(el=>{
+    el.classList.toggle("active", el.dataset.id===id);
+  });
+  const titles={
+    dashboard:"لوحة التحكم",appointments:"جدول المواعيد",
+    finance:"الخزنة والحسابات",costs:"تحليل التكاليف",
+    chatbot:"البوت الذكي",settings:"الإعدادات"
+  };
+  document.getElementById("topbar-title").textContent = titles[id]||label;
+  document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
+  document.getElementById(sectionId).classList.add("active");
+  currentSection = id;
+  if(id==="dashboard")    renderDashboard();
+  if(id==="appointments") renderAppointments();
+  if(id==="finance")      renderFinance();
+  if(id==="costs")        renderCosts();
+  if(id==="chatbot")      renderChatbot();
+}
+
+// ════════════════════════════════════════════════
+//  DASHBOARD
+// ════════════════════════════════════════════════
+function renderDashboard(){
+  const rev  = financeRecords.filter(r=>r.paid>0&&!r.expenseType).reduce((s,r)=>s+r.paid,0);
+  const exp  = financeRecords.filter(r=>r.expenseAmount>0).reduce((s,r)=>s+r.expenseAmount,0);
+  const pend = financeRecords.filter(r=>r.installmentStatus==="منتظر").reduce((s,r)=>s+(r.total-r.paid),0);
+  document.getElementById("d-net").textContent  = fmt(rev-exp);
+  document.getElementById("d-rev").textContent  = fmt(rev);
+  document.getElementById("d-exp").textContent  = fmt(exp);
+  document.getElementById("d-pend").textContent = fmt(pend);
+  document.getElementById("d-patients").textContent = appointments.length;
+  const attended = appointments.filter(a=>a.status==="حضر").length;
+  document.getElementById("d-attend").textContent = Math.round(attended/Math.max(appointments.length,1)*100) + "%";
+
+  const svcCount = {};
+  appointments.forEach(a=>svcCount[a.service]=(svcCount[a.service]||0)+1);
+  const svcData = Object.entries(svcCount).sort((a,b)=>b[1]-a[1]);
+  const maxSvc = Math.max(...svcData.map(d=>d[1]),1);
+  const barColors = ["#00D4AA","#F5C842","#A855F7","#FF6B6B","#60A5FA"];
+  document.getElementById("svc-bars").innerHTML = svcData.length===0
+    ? `<div class="empty-state"><div class="empty-icon">📊</div>لا توجد بيانات بعد</div>`
+    : svcData.map(([s,c],i)=>`
+    <div class="bar-wrap">
+      <div class="bar-meta"><span>${s}</span><span style="color:var(--slate)">${c} حالة</span></div>
+      <div class="bar-bg"><div class="bar-fill" style="width:${(c/maxSvc)*100}%;background:${barColors[i%barColors.length]}"></div></div>
+    </div>`).join("");
+
+  const srcCount = {};
+  appointments.forEach(a=>srcCount[a.source]=(srcCount[a.source]||0)+1);
+  const srcColors = {ManyChat:"#00D4AA",Phone:"#A855F7","Walk-in":"#F5C842",WhatsApp:"#4ADE80",Instagram:"#F472B6"};
+  document.getElementById("src-rows").innerHTML = Object.entries(srcCount).map(([s,c])=>`
+    <div class="source-row">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="source-dot" style="background:${srcColors[s]||"#8A9BB0"}"></div><span>${s}</span>
+      </div>
+      <span style="font-weight:800;font-family:var(--mono)">${c} <span style="color:var(--slate);font-weight:400">(${Math.round(c/Math.max(appointments.length,1)*100)}%)</span></span>
+    </div>`).join("");
+
+  const formulas = [
+    { label:"إيرادات اليوم",   formula:"=SUMIF(Finance!A:A, TODAY(), Finance!F:F)",         result:fmt(1500) },
+    { label:"مصاريف اليوم",    formula:"=SUMIF(Finance!A:A, TODAY(), Finance!L:L)",         result:fmt(0)    },
+    { label:"صافي اليوم",      formula:"=SUMIFS(...F:F)-SUMIFS(...L:L)",                    result:fmt(1500) },
+    { label:"عدد مرضى اليوم",  formula:"=COUNTIF('Live Calendar'!E:E, TODAY())",            result:"3 مرضى"  },
+    { label:"الديون المتبقية", formula:'=SUMIF(Finance!J:J,"منتظر",Finance!G:G)',          result:fmt(pend) },
+    { label:"إيرادات الشهر",   formula:"=SUMIFS(Finance!F:F,A:A,\">=\"&DATE(...))",        result:fmt(rev)  },
+  ];
+  document.getElementById("formulas-list").innerHTML = formulas.map(f=>`
+    <div class="formula-row">
+      <div style="font-weight:700">${f.label}</div>
+      <div class="formula-code">${f.formula}</div>
+      <div class="formula-result">${f.result}</div>
+    </div>`).join("");
+}
+
+// ════════════════════════════════════════════════
+//  APPOINTMENTS
+// ════════════════════════════════════════════════
+function renderAppointments(){
+  const counts = {
+    "الكل":appointments.length,
+    "جديد":appointments.filter(a=>a.status==="جديد").length,
+    "مؤكد":appointments.filter(a=>a.status==="مؤكد").length,
+    "حضر": appointments.filter(a=>a.status==="حضر").length,
+    "غائب":appointments.filter(a=>a.status==="غائب").length,
+  };
+  document.getElementById("appt-metrics").innerHTML = `
+    <div class="metric-card teal"><div class="metric-icon">📅</div><div class="metric-label">إجمالي المواعيد</div><div class="metric-value white">${appointments.length}</div></div>
+    <div class="metric-card teal"><div class="metric-icon">✅</div><div class="metric-label">مؤكدة</div><div class="metric-value teal">${counts["مؤكد"]}</div></div>
+    <div class="metric-card purple"><div class="metric-icon">🆕</div><div class="metric-label">جديدة</div><div class="metric-value purple">${counts["جديد"]}</div></div>
+    <div class="metric-card coral"><div class="metric-icon">❌</div><div class="metric-label">غائبون</div><div class="metric-value coral">${counts["غائب"]}</div></div>`;
+
+  document.getElementById("appt-filters").innerHTML = ["الكل","جديد","مؤكد","حضر","غائب","مؤجل"].map(s=>`
+    <button class="pill ${apptFilter===s?"active":""}" onclick="setApptFilter('${s}')">${s}</button>`).join("");
+
+  const filtered = apptFilter==="الكل" ? appointments : appointments.filter(a=>a.status===apptFilter);
+  document.getElementById("appt-tbody").innerHTML = filtered.length===0
+    ? `<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--slate)">لا توجد مواعيد</td></tr>`
+    : filtered.map(a=>`
+    <tr>
+      <td class="td-name">${a.name}</td>
+      <td class="td-mono">${a.phone}</td>
+      <td>${CLINIC_CONFIG.services[a.service]?.emoji||"🦷"} ${a.service}</td>
+      <td class="td-muted">${a.date} ${a.time}</td>
+      <td>
+        <select onchange="changeApptStatus('${a.fbId}',this.value)" style="padding:5px 8px;font-size:12px;width:auto">
+          ${["جديد","مؤكد","حضر","غائب","مؤجل"].map(s=>`<option ${a.status===s?"selected":""}>${s}</option>`).join("")}
+        </select>
+      </td>
+      <td class="td-muted">${a.source}</td>
+      <td style="text-align:center">${a.reminderSent?"<span style='color:var(--teal)'>✅</span>":"<button class='btn btn-ghost btn-sm' onclick=\"sendReminder('${a.fbId}')\">📲</button>"}</td>
+      <td><button class="delete-btn" onclick="deleteAppt('${a.fbId}')" title="حذف">🗑</button></td>
+    </tr>`).join("");
+}
+
+window.setApptFilter = (f)=>{ apptFilter=f; renderAppointments(); };
+window.changeApptStatus = (id,val)=>{
+  appointments = appointments.map(a=>a.id===id?{...a,status:val}:a);
+  showToast("✅ تم تحديث الحالة");
+  renderAppointments();
+};
+window.deleteAppt = (id)=>{
+  if(!confirm("هل تريد حذف هذا الحجز؟")) return;
+  appointments = appointments.filter(a=>a.id!==id);
+  showToast("🗑 تم حذف الحجز");
+  renderAppointments();
+};
+window.sendReminder = (id)=>{
+  appointments = appointments.map(a=>a.id===id?{...a,reminderSent:true}:a);
+  showToast("📲 تم إرسال التذكير!");
+  renderAppointments();
+};
+
+// ════════════════════════════════════════════════
+//  FINANCE
+// ════════════════════════════════════════════════
+function renderFinance(){
+  const revenue  = financeRecords.filter(r=>r.paid>0&&!r.expenseType);
+  const expenses = financeRecords.filter(r=>r.expenseAmount>0);
+  const totalRev = revenue.reduce((s,r)=>s+r.paid,0);
+  const totalExp = expenses.reduce((s,r)=>s+r.expenseAmount,0);
+  const net      = totalRev-totalExp;
+  const pend     = financeRecords.filter(r=>r.installmentStatus==="منتظر").reduce((s,r)=>s+(r.total-r.paid),0);
+
+  let metricsHTML = `<div class="metric-card teal"><div class="metric-icon">💰</div><div class="metric-label">إجمالي الإيرادات</div><div class="metric-value teal">${fmt(totalRev)}</div></div>`;
+  if(currentUser.role==="owner"){
+    metricsHTML += `<div class="metric-card coral"><div class="metric-icon">💸</div><div class="metric-label">إجمالي المصاريف</div><div class="metric-value coral">${fmt(totalExp)}</div></div>`;
+    metricsHTML += `<div class="metric-card ${net>=0?"teal":"coral"}"><div class="metric-icon">📈</div><div class="metric-label">صافي الدخل</div><div class="metric-value ${net>=0?"teal":"coral"}">${fmt(net)}</div></div>`;
+  }
+  metricsHTML += `<div class="metric-card gold"><div class="metric-icon">⏳</div><div class="metric-label">ديون متبقية</div><div class="metric-value gold">${fmt(pend)}</div></div>`;
+  document.getElementById("fin-metrics").innerHTML = metricsHTML;
+
+  const availTabs = currentUser.role==="owner" ? ["إيرادات","مصاريف"] : ["إيرادات"];
+  document.getElementById("fin-tabs").innerHTML = availTabs.map(t=>`
+    <button class="pill ${finTab===t?"active":""}" onclick="setFinTab('${t}')">${t}</button>`).join("");
+
+  if(finTab==="إيرادات"){
+    document.getElementById("fin-thead").innerHTML = `<tr>${["التاريخ","المريض","الخدمة","الإجمالي","المدفوع","المتبقي","طريقة الدفع","القسط القادم","حالة القسط"].map(h=>`<th>${h}</th>`).join("")}</tr>`;
+    document.getElementById("fin-tbody").innerHTML = revenue.length===0
+      ? `<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--slate)">لا توجد إيرادات</td></tr>`
+      : revenue.map(r=>`
+      <tr>
+        <td class="td-muted">${r.date}</td>
+        <td class="td-name">${r.patient}</td>
+        <td>${CLINIC_CONFIG.services[r.service]?.emoji||""} ${r.service}</td>
+        <td class="td-amount">${fmt(r.total)}</td>
+        <td class="td-amount td-teal">${fmt(r.paid)}</td>
+        <td class="td-amount ${r.total-r.paid>0?"td-coral":"td-teal"}">${fmt(r.total-r.paid)}</td>
+        <td class="td-muted">${r.method}</td>
+        <td class="td-muted">${r.installmentDate||"—"}</td>
+        <td>${r.installmentStatus?badge(r.installmentStatus):""}</td>
+      </tr>`).join("");
+  } else {
+    document.getElementById("fin-thead").innerHTML = `<tr>${["التاريخ","نوع المصروف","المبلغ","ملاحظات"].map(h=>`<th>${h}</th>`).join("")}</tr>`;
+    document.getElementById("fin-tbody").innerHTML = expenses.length===0
+      ? `<tr><td colspan="4" style="text-align:center;padding:40px;color:var(--slate)">لا توجد مصاريف</td></tr>`
+      : expenses.map(r=>`
+      <tr>
+        <td class="td-muted">${r.date}</td>
+        <td class="td-name">${r.expenseType}</td>
+        <td class="td-amount td-coral">${fmt(r.expenseAmount)}</td>
+        <td class="td-muted">${r.notes||"—"}</td>
+      </tr>`).join("");
+  }
+}
+window.setFinTab = (t)=>{ finTab=t; renderFinance(); };
+
+// ════════════════════════════════════════════════
+//  COST ANALYSIS (from Excel)
+// ════════════════════════════════════════════════
+function renderCosts(){
+  const FC = CLINIC_CONFIG.fixedCosts;
+  const services = CLINIC_CONFIG.services;
+
+  // Hero metrics
+  document.getElementById("cost-hero-grid").innerHTML = `
+    <div class="cost-item">
+      <div class="cost-item-label">التكاليف الثابتة / شهر</div>
+      <div class="cost-item-value">${FC.totalMonthly.toLocaleString("ar-EG")}</div>
+      <div class="cost-item-sub">جنيه مصري</div>
+    </div>
+    <div class="cost-item">
+      <div class="cost-item-label">الإهلاك / شهر</div>
+      <div class="cost-item-value">${Math.round(FC.depreciationMonthly).toLocaleString("ar-EG")}</div>
+      <div class="cost-item-sub">إجمالي استثمار 815,000 ج</div>
+    </div>
+    <div class="cost-item">
+      <div class="cost-item-label">التكلفة الثابتة / ساعة</div>
+      <div class="cost-item-value">${FC.fixedCostPerHr.toFixed(0)}</div>
+      <div class="cost-item-sub">بناءً على ${FC.workHrsMonth} ساعة / شهر</div>
+    </div>
+    <div class="cost-item">
+      <div class="cost-item-label">ساعات العمل / شهر</div>
+      <div class="cost-item-value">${FC.workHrsMonth}</div>
+      <div class="cost-item-sub">9 ساعات × 6 أيام × 4 أسابيع</div>
+    </div>`;
+
+  // Fixed costs list
+  const costItems = [
+    {label:"الإيجار",              value:FC.rent},
+    {label:"التسويق الروتيني",     value:FC.marketing},
+    {label:"الفواتير (كهرباء/مياه)", value:FC.bills},
+    {label:"رواتب السكرتيرة والمساعدين", value:7000},
+    {label:"راتب الدكتور",         value:20000},
+  ];
+  document.getElementById("fixed-costs-list").innerHTML = costItems.map(c=>`
+    <div class="fixed-cost-row">
+      <span class="fixed-cost-label">${c.label}</span>
+      <span class="fixed-cost-value">${c.value.toLocaleString("ar-EG")} ج</span>
+    </div>`).join("");
+  document.getElementById("cost-per-hr").textContent = FC.fixedCostPerHr.toFixed(2) + " ج/ساعة";
+
+  // Service price cards (from Excel)
+  const excelServices = [
+    {name:"كشف (Diagnosis)",   emoji:"🔍", minCost:183,  svcPrice:250},
+    {name:"تنظيف (Scaling)",   emoji:"✨", minCost:362,  svcPrice:500},
+    {name:"حشو Composite",     emoji:"🦷", minCost:606,  svcPrice:900},
+    {name:"حشو أمالغم",         emoji:"⚙️", minCost:477,  svcPrice:700},
+    {name:"علاج عصب (Endo)",   emoji:"💉", minCost:1244, svcPrice:2000},
+    {name:"خلع (Extraction)",  emoji:"🔧", minCost:167,  svcPrice:350},
+    {name:"تبييض (Bleaching)", emoji:"⭐", minCost:1342, svcPrice:2500},
+    {name:"تركيبة PFM (Crown)",emoji:"👑", minCost:1200, svcPrice:3000},
+  ];
+  document.getElementById("service-price-cards").innerHTML = excelServices.map(s=>{
+    const margin = s.svcPrice > 0 ? Math.round((s.svcPrice-s.minCost)/s.svcPrice*100) : 0;
+    const barW   = Math.min(Math.max(margin,5),100);
+    return `
+    <div class="service-price-card" title="هامش الربح: ${margin}%">
+      <div class="spc-header">
+        <span class="spc-emoji">${s.emoji}</span>
+        <span class="spc-name">${s.name}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--slate)">
+        <span>الحد الأدنى: <strong style="color:var(--coral)">${s.minCost.toLocaleString("ar-EG")} ج</strong></span>
+        <span>السعر: <span class="spc-price">${s.svcPrice.toLocaleString("ar-EG")} ج</span></span>
+      </div>
+      <div class="spc-margin-bar"><div class="spc-margin-fill" style="width:${barW}%"></div></div>
+      <div class="spc-labels"><span>هامش الربح: <strong style="color:var(--teal)">${margin}%</strong></span><span>${margin>40?"ممتاز ✅":margin>20?"جيد ✔":"منخفض ⚠️"}</span></div>
+    </div>`;
+  }).join("");
+}
+
+// ════════════════════════════════════════════════
+//  PROFIT CALCULATOR
+// ════════════════════════════════════════════════
+window.calcProfit = ()=>{
+  const svcKey = document.getElementById("calc-service").value;
+  const price  = Number(document.getElementById("calc-price").value) || CLINIC_CONFIG.services[svcKey]?.price || 0;
+  const cases  = Number(document.getElementById("calc-cases").value) || 20;
+  const FC     = CLINIC_CONFIG.fixedCosts;
+  const VC     = CLINIC_CONFIG.variableCosts;
+  const minCost= CLINIC_CONFIG.services[svcKey]?.minCost || 0;
+
+  const monthlyRev       = price * cases;
+  const monthlyVarCost   = minCost * cases;
+  const fixedShare       = FC.totalMonthly;
+  const totalCost        = monthlyVarCost + fixedShare;
+  const profit           = monthlyRev - totalCost;
+  const profitMargin     = monthlyRev > 0 ? Math.round(profit/monthlyRev*100) : 0;
+  const breakEvenCases   = minCost > 0 ? Math.ceil(fixedShare / (price - minCost)) : "—";
+
+  document.getElementById("calc-result").classList.remove("hidden");
+  document.getElementById("calc-result").innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+      <div><span style="color:var(--slate)">إيراد شهري:</span><br><span style="font-weight:800">${monthlyRev.toLocaleString("ar-EG")} ج</span></div>
+      <div><span style="color:var(--slate)">تكلفة متغيرة:</span><br><span style="font-weight:800;color:var(--coral)">${monthlyVarCost.toLocaleString("ar-EG")} ج</span></div>
+      <div><span style="color:var(--slate)">تكاليف ثابتة:</span><br><span style="font-weight:800;color:var(--coral)">${fixedShare.toLocaleString("ar-EG")} ج</span></div>
+      <div><span style="color:var(--slate)">نقطة التعادل:</span><br><span style="font-weight:800;color:var(--gold)">${typeof breakEvenCases==="number"?breakEvenCases+" حالة":breakEvenCases}</span></div>
+    </div>
+    <div style="text-align:center">
+      <div style="font-size:12px;color:var(--slate);margin-bottom:4px">صافي الربح الشهري</div>
+      <div class="calc-highlight" style="color:${profit>=0?"var(--teal)":"var(--coral)"}">${profit>=0?"+":""}${profit.toLocaleString("ar-EG")} ج</div>
+      <div style="font-size:12px;color:var(--slate);margin-top:4px">هامش الربح: <strong style="color:${profitMargin>=30?"var(--teal)":profitMargin>=15?"var(--gold)":"var(--coral)"}">${profitMargin}%</strong></div>
+    </div>`;
+};
+
+// ════════════════════════════════════════════════
+//  CHATBOT
+// ════════════════════════════════════════════════
+function renderChatbot(){
+  document.getElementById("flow-steps").innerHTML = CHATBOT_FLOW_STEPS.map((step,i)=>`
+    <div class="flow-step">
+      <div style="display:flex;flex-direction:column;align-items:center">
+        <div class="flow-node ${activeFlowStep===step.id?"active-node":""}"
+          style="background:${step.bg};border-color:${activeFlowStep===step.id?step.color:"transparent"}"
+          onclick="toggleFlowStep('${step.id}')">
+          ${step.icon}
+        </div>
+        ${i<CHATBOT_FLOW_STEPS.length-1?`<div class="flow-line"></div>`:""}
+      </div>
+      <div class="flow-meta">
+        <div class="flow-label">${step.label}</div>
+        ${activeFlowStep===step.id?`<div class="flow-detail" style="background:${step.bg};color:${step.color}">${step.detail}</div>`:""}
+      </div>
+      <span class="flow-type-chip" style="background:${step.bg};color:${step.color}">${step.type}</span>
+    </div>`).join("");
+
+  document.getElementById("prompt-display").textContent = buildSystemPrompt();
+
+  if(chatHistory.length===0){
+    addBotMsg(`أهلاً! أنا مساعد ${CLINIC_CONFIG.clinicName} 😊\nبخدمك في إيه النهارده؟`);
+    renderQuickBtns();
+  }
+}
+
+window.toggleFlowStep = (id)=>{
+  activeFlowStep = activeFlowStep===id ? null : id;
+  renderChatbot();
+};
+
+function initChatbot(){
+  document.getElementById("chat-send-btn").onclick = sendChat;
+  document.getElementById("chat-input").addEventListener("keydown",e=>{
+    if(e.key==="Enter") sendChat();
+  });
+  document.getElementById("copy-prompt-btn").onclick = ()=>{
+    navigator.clipboard.writeText(buildSystemPrompt()).catch(()=>{});
+    showToast("✅ تم نسخ الـ System Prompt!");
+    document.getElementById("copy-prompt-btn").textContent="✅ تم النسخ";
+    setTimeout(()=>document.getElementById("copy-prompt-btn").textContent="نسخ الـ Prompt",2000);
+  };
+}
+
+function renderQuickBtns(){
+  const services = Object.keys(CLINIC_CONFIG.services).slice(0,4);
+  document.getElementById("quick-btns").innerHTML = [
+    ...services.map(s=>`${CLINIC_CONFIG.services[s].emoji} أسعار ${s}`),
+    "📅 حجز ميعاد"
+  ].map(opt=>`<button class="quick-btn" onclick="quickReply('${opt}')">${opt}</button>`).join("");
+}
+
+window.quickReply = (opt)=>{
+  document.getElementById("quick-btns").innerHTML="";
+  addUserMsg(opt);
+  sendToAI(opt);
+};
+
+function addBotMsg(text){ chatHistory.push({role:"bot",text}); renderChatMessages(); }
+function addUserMsg(text){ chatHistory.push({role:"user",text}); renderChatMessages(); }
+function renderChatMessages(){
+  const c = document.getElementById("chat-messages");
+  c.innerHTML = chatHistory.map(m=>`<div class="msg-row ${m.role==="bot"?"bot":"user"}"><div class="msg-bubble">${m.text}</div></div>`).join("");
+  c.scrollTop = c.scrollHeight;
+}
+
+async function sendChat(){
+  const input = document.getElementById("chat-input");
+  const text = input.value.trim();
+  if(!text) return;
+  input.value="";
+  document.getElementById("quick-btns").innerHTML="";
+  addUserMsg(text);
+  sendToAI(text);
+}
+
+async function sendToAI(userText){
+  const sendBtn = document.getElementById("chat-send-btn");
+  sendBtn.disabled=true;
+  const container = document.getElementById("chat-messages");
+  const typingEl = document.createElement("div");
+  typingEl.className="msg-row bot";
+  typingEl.innerHTML=`<div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>`;
+  container.appendChild(typingEl);
+  container.scrollTop=container.scrollHeight;
+
+  chatApiHistory.push({role:"user",content:userText});
+  try{
+    const res = await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        model:"claude-sonnet-4-6",
+        max_tokens:1000,
+        system:buildSystemPrompt(),
+        messages:chatApiHistory,
+      }),
+    });
+    const data = await res.json();
+    const reply = data.content?.map(b=>b.text||"").join("") || "عفواً، في مشكلة بسيطة. حاول تاني 😊";
+    chatApiHistory.push({role:"assistant",content:reply});
+    typingEl.remove();
+    addBotMsg(reply);
+  } catch(e){
+    typingEl.remove();
+    addBotMsg("عفواً، في مشكلة في الاتصال 🙏");
+  }
+  sendBtn.disabled=false;
+}
+
+// ════════════════════════════════════════════════
+//  BROADCAST
+// ════════════════════════════════════════════════
+function initBroadcast(){
+  const slider = document.getElementById("delay-slider");
+  const valEl  = document.getElementById("delay-val");
+  slider.oninput = ()=>valEl.textContent=slider.value;
+  document.getElementById("broadcast-btn").onclick = ()=>{
+    const mins = slider.value;
+    const confirmed = appointments.filter(a=>a.status==="مؤكد");
+    const msgEl = document.getElementById("broadcast-msg");
+    msgEl.innerHTML = `✅ تم إرسال التنبيه لـ <strong>${confirmed.length}</strong> مريض<br><span style="opacity:.8;margin-top:4px;display:block">الرسالة: أهلاً! عندنا تأخير ${mins} دقيقة في العيادة النهارده. شكراً لتفهمك 🙏</span>`;
+    msgEl.classList.remove("hidden");
+    setTimeout(()=>msgEl.classList.add("hidden"),6000);
+    showToast(`✅ تم الإرسال لـ ${confirmed.length} مريض!`);
+  };
+}
+
+// ════════════════════════════════════════════════
+//  MODALS
+// ════════════════════════════════════════════════
+function initModals(){
+  document.querySelectorAll("[data-close]").forEach(btn=>{
+    btn.onclick=()=>document.getElementById(btn.dataset.close).classList.remove("open");
+  });
+  document.querySelectorAll(".modal-overlay").forEach(overlay=>{
+    overlay.onclick=(e)=>{ if(e.target===overlay) overlay.classList.remove("open"); };
+  });
+  document.getElementById("btn-add-appt").onclick=()=>document.getElementById("modal-appt").classList.add("open");
+  document.getElementById("btn-add-fin").onclick=()=>document.getElementById("modal-fin").classList.add("open");
+  document.getElementById("save-appt-btn").onclick=saveAppointment;
+  document.getElementById("save-fin-btn").onclick=saveFinance;
+}
+
+// ── Write to Firebase, listener re-renders automatically ──────────────────
+async function saveAppointment(){
+  const name  = document.getElementById("f-name").value.trim();
+  const phone = document.getElementById("f-phone").value.trim();
+  const date  = document.getElementById("f-date").value;
+  const time  = document.getElementById("f-time").value;
+  if(!name||!phone){ showToast("❌ الاسم والهاتف مطلوبان","error"); return; }
+  const data = {
+    timestamp: new Date().toISOString(),
+    name, phone,
+    service:       document.getElementById("f-service").value,
+    date, time,
+    status:        "جديد",
+    source:        document.getElementById("f-source").value,
+    notes:         document.getElementById("f-notes").value,
+    reminderSent:  false,
+  };
+  if(window.FIREBASE_READY){
+    try{
+      await window.FB.addAppointment(data);
+      showToast("✅ تم الحفظ في Firebase!");
+    } catch(e){ showToast("⚠️ خطأ Firebase: " + e.message,"error"); }
+  } else {
+    appointments.push({...data, fbId:null});
+    renderAppointments();
+    showToast("✅ تم الحفظ محلياً (Firebase غير متصل)");
+  }
+  document.getElementById("modal-appt").classList.remove("open");
+  ["f-name","f-phone","f-date","f-time","f-notes"].forEach(id=>document.getElementById(id).value="");
+}
+
+async function saveFinance(){
+  const patient = document.getElementById("ff-patient").value.trim();
+  const total   = Number(document.getElementById("ff-total").value)||0;
+  const paid    = Number(document.getElementById("ff-paid").value)||0;
+  const expType = document.getElementById("ff-exptype").value.trim();
+  const expAmt  = Number(document.getElementById("ff-expamt").value)||0;
+  if(!patient&&!expType){ showToast("❌ اسم المريض أو نوع المصروف مطلوب","error"); return; }
+  const data = {
+    date:              document.getElementById("ff-date").value||new Date().toISOString().split("T")[0],
+    patient, phone:    "",
+    service:           document.getElementById("ff-service").value,
+    total, paid,
+    method:            document.getElementById("ff-method").value,
+    installmentDate:   document.getElementById("ff-instdate").value,
+    installmentStatus: document.getElementById("ff-inst").value,
+    expenseType:       expType,
+    expenseAmount:     expAmt,
+    notes:             "",
+  };
+  if(window.FIREBASE_READY){
+    try{
+      await window.FB.addFinance(data);
+      showToast("✅ تم الحفظ في Firebase!");
+    } catch(e){ showToast("⚠️ خطأ Firebase: " + e.message,"error"); }
+  } else {
+    financeRecords.push({...data, fbId:null});
+    renderFinance();
+    showToast("✅ تم الحفظ محلياً (Firebase غير متصل)");
+  }
+  document.getElementById("modal-fin").classList.remove("open");
+  ["ff-patient","ff-total","ff-paid","ff-exptype","ff-expamt","ff-instdate","ff-date"].forEach(id=>document.getElementById(id).value="");
+}
+
+// ════════════════════════════════════════════════
+//  FIREBASE REAL-TIME LISTENERS
+//  Attached after login — update local arrays & re-render automatically
+// ════════════════════════════════════════════════
+function attachFirebaseListeners(){
+  if(!window.FIREBASE_READY){ return; }
+
+  // ── Appointments listener ──────────────────────────
+  window.FB.watchAppointments(data => {
+    fbConnected = true;
+    appointments = data.filter(Boolean);
+    if(currentSection==="appointments") renderAppointments();
+    if(currentSection==="dashboard")    renderDashboard();
+    updateNavBadge();
+  });
+
+  // ── Finance listener ───────────────────────────────
+  window.FB.watchFinance(data => {
+    financeRecords = data.filter(Boolean);
+    if(currentSection==="finance")   renderFinance();
+    if(currentSection==="dashboard") renderDashboard();
+  });
+
+  // ── Settings listener ──────────────────────────────
+  window.FB.watchSettings(data => {
+    if(!data) return;
+    Object.assign(CLINIC_CONFIG, data);
+    USERS.owner.password      = CLINIC_CONFIG.ownerPass;
+    USERS.secretary.password  = CLINIC_CONFIG.secretaryPass;
+    applyConfig();
+  });
+}
+
+function updateNavBadge(){
+  const newCount = appointments.filter(a=>a.status==="جديد").length;
+  const badgeEl  = document.querySelector(`.nav-item[data-id="appointments"] .nav-badge`);
+  if(badgeEl) badgeEl.textContent = newCount || "";
+}
+
+// ── Override changeApptStatus to write to Firebase ────────────────────────
+window.changeApptStatus = async (fbId, val)=>{
+  if(window.FIREBASE_READY && fbId){
+    try{
+      await window.FB.updateAppointment(fbId, {status:val});
+    } catch(e){ showToast("⚠️ " + e.message,"error"); }
+  } else {
+    appointments = appointments.map(a=>a.fbId===fbId?{...a,status:val}:a);
+    renderAppointments();
+  }
+  showToast("✅ تم تحديث الحالة");
+};
+
+// ── Override deleteAppt to remove from Firebase ───────────────────────────
+window.deleteAppt = async (fbId)=>{
+  if(!confirm("هل تريد حذف هذا الحجز؟")) return;
+  if(window.FIREBASE_READY && fbId){
+    try{
+      await window.FB.deleteAppointment(fbId);
+      showToast("🗑 تم الحذف من Firebase");
+    } catch(e){ showToast("⚠️ " + e.message,"error"); }
+  } else {
+    appointments = appointments.filter(a=>a.fbId!==fbId);
+    renderAppointments();
+    showToast("🗑 تم الحذف محلياً");
+  }
+};
+
+// ── Override sendReminder ─────────────────────────────────────────────────
+window.sendReminder = async (fbId)=>{
+  if(window.FIREBASE_READY && fbId){
+    try{ await window.FB.updateAppointment(fbId, {reminderSent:true}); } catch(e){}
+  } else {
+    appointments = appointments.map(a=>a.fbId===fbId?{...a,reminderSent:true}:a);
+    renderAppointments();
+  }
+  showToast("📲 تم إرسال التذكير!");
+};
+
+// ── Override saveSettings to persist to Firebase ──────────────────────────
+const _origSaveSettings = window.saveSettings;
+window.saveSettings = async function(){
+  // Run local config update first
+  CLINIC_CONFIG.clinicName  = document.getElementById("s-clinic-name").value || CLINIC_CONFIG.clinicName;
+  CLINIC_CONFIG.doctorName  = document.getElementById("s-doctor-name").value || CLINIC_CONFIG.doctorName;
+  CLINIC_CONFIG.specialty   = document.getElementById("s-specialty").value   || CLINIC_CONFIG.specialty;
+  CLINIC_CONFIG.phone       = document.getElementById("s-phone").value       || CLINIC_CONFIG.phone;
+  CLINIC_CONFIG.logoUrl     = document.getElementById("s-logo-url").value;
+  CLINIC_CONFIG.logoEmoji   = document.getElementById("s-logo-emoji").value  || CLINIC_CONFIG.logoEmoji;
+  const newOwnerPass = document.getElementById("s-owner-pass").value;
+  const newSecPass   = document.getElementById("s-sec-pass").value;
+  if(newOwnerPass) CLINIC_CONFIG.ownerPass = newOwnerPass;
+  if(newSecPass)   CLINIC_CONFIG.secretaryPass = newSecPass;
+  USERS.owner.password    = CLINIC_CONFIG.ownerPass;
+  USERS.secretary.password= CLINIC_CONFIG.secretaryPass;
+  USERS.owner.name        = CLINIC_CONFIG.doctorName;
+  applyConfig();
+
+  // Push to Firebase
+  if(window.FIREBASE_READY){
+    try{
+      await window.FB.saveSettings(CLINIC_CONFIG);
+      showToast("✅ تم الحفظ في Firebase!");
+    } catch(e){ showToast("⚠️ " + e.message,"error"); }
+  } else {
+    showToast("✅ تم الحفظ محلياً");
+  }
+};
+
+// ════════════════════════════════════════════════
+//  FIREBASE HELPERS
+// ════════════════════════════════════════════════
+window.checkFirebaseStatus = function(){
+  const dot = document.getElementById("fb-panel-dot");
+  const lbl = document.getElementById("fb-panel-status");
+  if(!dot||!lbl) return;
+  if(window.FIREBASE_READY && fbConnected){
+    dot.style.background = "#00D4AA";
+    dot.style.boxShadow  = "0 0 6px #00D4AA";
+    lbl.textContent      = "✅ Firebase متصل — البيانات تُزامن في الوقت الفعلي";
+    lbl.style.color      = "#00D4AA";
+  } else if(window.FIREBASE_READY){
+    dot.style.background = "#F5C842";
+    dot.style.boxShadow  = "none";
+    lbl.textContent      = "⏳ Firebase جاهز — في انتظار أول رد من قاعدة البيانات";
+    lbl.style.color      = "#F5C842";
+  } else {
+    dot.style.background = "#FF6B6B";
+    dot.style.boxShadow  = "none";
+    lbl.textContent      = "❌ Firebase غير متصل — تحقق من FIREBASE_CONFIG في الملف";
+    lbl.style.color      = "#FF6B6B";
+  }
+};
+
+window.seedFirebase = async function(){
+  if(!window.FIREBASE_READY){ showToast("❌ Firebase غير متصل","error"); return; }
+  if(!confirm("سيتم رفع البيانات التجريبية إلى Firebase. هل تريد المتابعة؟")) return;
+  try{
+    for(const a of SEED_APPOINTMENTS) await window.FB.addAppointment(a);
+    for(const f of SEED_FINANCE)      await window.FB.addFinance(f);
+    await window.FB.saveSettings(CLINIC_CONFIG);
+    showToast("🌱 تم رفع البيانات التجريبية بنجاح!");
+  } catch(e){ showToast("❌ خطأ: " + e.message,"error"); }
+};
+
+// ════════════════════════════════════════════════
+//  FIREBASE STATUS INDICATOR (sidebar)
+// ════════════════════════════════════════════════
+function renderFbStatus(connected){
+  const existing = document.getElementById("fb-status-badge");
+  if(existing) existing.remove();
+  const badge = document.createElement("div");
+  badge.id = "fb-status-badge";
+  badge.style.cssText = `
+    margin:0 10px 10px;padding:6px 12px;border-radius:8px;font-size:11px;font-weight:700;
+    display:flex;align-items:center;gap:6px;
+    ${connected
+      ? "background:rgba(0,212,170,.1);color:#00D4AA;border:1px solid rgba(0,212,170,.2);"
+      : "background:rgba(255,107,107,.08);color:#FF6B6B;border:1px solid rgba(255,107,107,.2);"}
+  `;
+  badge.innerHTML = connected
+    ? `<span style="width:7px;height:7px;background:#00D4AA;border-radius:50%;display:inline-block;box-shadow:0 0 6px #00D4AA"></span>🔥 Firebase متصل`
+    : `<span style="width:7px;height:7px;background:#FF6B6B;border-radius:50%;display:inline-block"></span>⚠️ وضع غير متصل`;
+  const nav = document.getElementById("sidebar-nav");
+  nav.parentNode.insertBefore(badge, nav.nextSibling);
+}
+
+// ════════════════════════════════════════════════
+//  BOOT
+// ════════════════════════════════════════════════
+// Sync USERS passwords from config
+USERS.owner.password     = CLINIC_CONFIG.ownerPass;
+USERS.owner.name         = CLINIC_CONFIG.ownerName;
+USERS.owner.initials     = CLINIC_CONFIG.ownerInitials;
+USERS.secretary.password = CLINIC_CONFIG.secretaryPass;
+USERS.secretary.name     = CLINIC_CONFIG.secretaryName;
+USERS.secretary.initials = CLINIC_CONFIG.secretaryInitials;
+
+applyConfig();
+
+// ── Wire Firebase after login ─────────────────────────────────────────────
+const _origInitApp = initApp;
+window.initApp = function(){
+  _origInitApp();
+  // Attach real-time listeners once logged in
+  if(window.FIREBASE_READY){
+    attachFirebaseListeners();
+    renderFbStatus(true);
+    setTimeout(window.checkFirebaseStatus, 800);
+  } else {
+    window.addEventListener("firebase-ready", ()=>{
+      attachFirebaseListeners();
+      renderFbStatus(true);
+      setTimeout(window.checkFirebaseStatus, 800);
+    }, {once:true});
+    renderFbStatus(false);
+    setTimeout(window.checkFirebaseStatus, 500);
+    setTimeout(()=>{ if(!window.FIREBASE_READY){ renderFbStatus(false); } }, 3000);
+  }
+};
+</script>
+</body>
+</html>
